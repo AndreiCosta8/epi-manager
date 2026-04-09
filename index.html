@@ -555,12 +555,14 @@ function isOp(){return curUser&&(curUser.role==='Gerente'||curUser.role==='Opera
 var fbLoaded={users:false,prods:false,emps:false,movs:false};
 var curPage='dashboard';
 
-function checkAllLoaded(){
-  if(fbLoaded.users&&fbLoaded.prods&&fbLoaded.emps&&fbLoaded.movs){
-    g('loadingScreen').style.display='none';
-    g('loginScreen').style.display='flex';
-  }
+function showLogin(){
+  g('loadingScreen').style.display='none';
+  g('loginScreen').style.display='flex';
 }
+function checkAllLoaded(){
+  if(fbLoaded.users&&fbLoaded.prods&&fbLoaded.emps&&fbLoaded.movs){showLogin();}
+}
+setTimeout(function(){if(g('loadingScreen').style.display!=='none'){showLogin();}},6000);
 
 function setupListeners(){
   // USUÁRIOS
