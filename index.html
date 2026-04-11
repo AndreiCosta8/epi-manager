@@ -564,16 +564,32 @@ function checkAllLoaded(){
 }
 setTimeout(function(){if(g('loadingScreen').style.display!=='none'){showLogin();}},6000);
 
+// Limpa registros inválidos do Firebase (sem nome/id)
+function cleanRef(ref,keyField){
+  ref.once('value',function(snap){
+    var data=snap.val();if(!data)return;
+    Object.keys(data).forEach(function(k){
+      var v=data[k];
+      if(!v||typeof v!=='object'||!v[keyField]){ref.child(k).remove();}
+    });
+  });
+}
+
 function setupListeners(){
+  // Limpa registros em branco ao iniciar
+  cleanRef(db.ref('empresas'),'n');
+  cleanRef(db.ref('epis'),'n');
+  cleanRef(db.ref('movimentos'),'io');
+  cleanRef(db.ref('usuarios'),'login');
+
   // USUÁRIOS
   db.ref('usuarios').on('value',function(snap){
     var data=snap.val();
     if(!data){
-      // banco vazio — carrega dados iniciais
       INIT_USERS.forEach(function(u){db.ref('usuarios/'+u.id).set(u);});
       users=INIT_USERS.slice();
     } else {
-      users=Object.values(data);
+      users=Object.values(data).filter(function(u){return u&&u.login;});
     }
     fbLoaded.users=true;checkAllLoaded();
     if(curUser&&curPage==='users')rU();
@@ -586,7 +602,7 @@ function setupListeners(){
       INIT_PRODS.forEach(function(p){db.ref('epis/'+p.id).set(p);});
       prods=INIT_PRODS.slice();
     } else {
-      prods=Object.values(data);
+      prods=Object.values(data).filter(function(p){return p&&p.n;});
     }
     fbLoaded.prods=true;checkAllLoaded();
     if(curUser)refreshCurPage();
@@ -599,7 +615,7 @@ function setupListeners(){
       INIT_EMPS.forEach(function(e){db.ref('empresas/'+e.id).set(e);});
       emps=INIT_EMPS.slice();
     } else {
-      emps=Object.values(data);
+      emps=Object.values(data).filter(function(e){return e&&e.n;});
     }
     fbLoaded.emps=true;checkAllLoaded();
     if(curUser)refreshCurPage();
@@ -612,7 +628,7 @@ function setupListeners(){
       INIT_MOVS.forEach(function(m){db.ref('movimentos/'+m.id).set(m);});
       movs=INIT_MOVS.slice();
     } else {
-      movs=Object.values(data);
+      movs=Object.values(data).filter(function(m){return m&&m.io&&m.pn;});
     }
     fbLoaded.movs=true;checkAllLoaded();
     if(curUser)refreshCurPage();
