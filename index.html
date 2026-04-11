@@ -375,7 +375,7 @@ select:focus,input:focus{border-color:#10b981}
 </div></div>
 
 <div class="mbg" id="me"><div class="modal" style="max-width:420px">
-  <div class="mh"><h3>Nova Empresa / Cliente</h3><button class="ib" onclick="cl('me')">✕</button></div>
+  <div class="mh"><h3 id="me-title">Nova Empresa / Cliente</h3><button class="ib" onclick="cl('me')">✕</button></div>
   <div class="mb">
     <div class="fgp"><label class="fl">Nome *</label><input class="fi" id="en" placeholder="Razão social ou nome fantasia"></div>
     <div class="fgp"><label class="fl">Tipo</label><select class="fi" id="eti2"><option>BALCAO</option><option selected>CONSUMIDOR FINAL</option><option>DISTRIBUIDORA</option></select></div>
@@ -384,56 +384,50 @@ select:focus,input:focus{border-color:#10b981}
   <div class="mf"><button class="btn bs" onclick="cl('me')">Cancelar</button><button class="btn bp2" onclick="svE()">Salvar</button></div>
 </div></div>
 
-<div class="mbg" id="mm"><div class="modal">
+<div class="mbg" id="mm"><div class="modal" style="max-width:680px">
   <div class="mh"><h3 id="mm-title">Nova Movimentação</h3><button class="ib" onclick="cl('mm')">✕</button></div>
   <div class="mb">
-    <div class="fg">
-      <div class="fgp"><label class="fl">Tipo de Operação</label>
-        <select class="fi" id="mtp">
-          <option value="RET-">(-) Retirada / Venda</option>
-          <option value="AQU+">(+) Aquisição / Compra</option>
-          <option value="AJU+">(+) Ajuste de Estoque</option>
-          <option value="AJU-">(-) Ajuste de Estoque</option>
-          <option value="DEV+">(+) Devolução</option>
-          <option value="DES-">(-) Descarte</option>
-        </select>
-      </div>
-      <div class="fgp"><label class="fl">Data</label><input class="fi" type="date" id="mdt"></div>
-    </div>
-    <div class="fgp"><label class="fl">Produto</label><select class="fi" id="mpr" onchange="mPrChange()"></select></div>
-    <div class="fg">
-      <div class="fgp"><label class="fl">Empresa / Cliente</label><select class="fi" id="mem"></select></div>
-      <div class="fgp"><label class="fl">Quantidade</label><input class="fi" type="number" id="mq" value="1" min="1" oninput="calcTotal()"></div>
-    </div>
-    <div class="ss"><div class="ssl">💰 Valores</div>
-      <div class="fg3">
-        <div class="fgp"><label class="fl">Valor Unitário (R$)</label><input class="fi" type="number" step="0.01" id="mvu" value="0" oninput="calcTotal()"></div>
-        <div class="fgp"><label class="fl">Modalidade</label>
-          <select class="fi" id="mmod" onchange="applyMod()">
-            <option value="manual">Manual</option>
-            <option value="b">Preço Base</option>
-            <option value="dp">Diretoria</option>
-            <option value="di">Distribuidora</option>
-            <option value="f">Cliente Final</option>
+    <!-- CABEÇALHO DA NF -->
+    <div style="background:#f8fafc;border-radius:8px;padding:12px;border:1px solid #e2e8f0">
+      <div style="font-size:10.5px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">📋 Dados da Nota Fiscal</div>
+      <div class="fg">
+        <div class="fgp"><label class="fl">Tipo de Operação</label>
+          <select class="fi" id="mtp" onchange="mTpChange()">
+            <option value="RET-">(-) Retirada / Venda</option>
+            <option value="AQU+">(+) Aquisição / Compra</option>
+            <option value="AJU+">(+) Ajuste de Estoque</option>
+            <option value="AJU-">(-) Ajuste de Estoque</option>
+            <option value="DEV+">(+) Devolução</option>
+            <option value="DES-">(-) Descarte</option>
           </select>
         </div>
-        <div class="fgp"><label class="fl">Valor Total (R$)</label><input class="fi" id="mvt" readonly style="background:#f8fafc;color:#059669;font-weight:600"></div>
+        <div class="fgp"><label class="fl">Data</label><input class="fi" type="date" id="mdt"></div>
       </div>
-    </div>
-    <div class="ss"><div class="ssl">📄 Nota Fiscal</div>
-      <div class="fg">
+      <div class="fg" style="margin-top:10px">
+        <div class="fgp"><label class="fl">Empresa / Cliente</label><select class="fi" id="mem"></select></div>
+        <div class="fgp"><label class="fl">Usuário Responsável</label><input class="fi" id="mu"></div>
+      </div>
+      <div class="fg" style="margin-top:10px">
         <div class="fgp"><label class="fl">Número da NF</label><input class="fi" id="mnf" placeholder="Ex: NF-001234"></div>
         <div class="fgp"><label class="fl">Emitente / Fornecedor</label><input class="fi" id="mnfe" placeholder="Nome do emitente"></div>
       </div>
+      <div class="fgp" style="margin-top:10px"><label class="fl">Observações</label><input class="fi" id="mob" placeholder="Opcional..."></div>
     </div>
+
+    <!-- ITENS DA NF -->
     <div class="ss">
-      <div class="fg">
-        <div class="fgp"><label class="fl">Usuário Responsável</label><input class="fi" id="mu"></div>
-        <div class="fgp"><label class="fl">Observações</label><input class="fi" id="mob" placeholder="Opcional..."></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:10.5px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px">📦 Itens</div>
+        <button class="btn bp2 bsm" onclick="addItem()">➕ Adicionar Item</button>
+      </div>
+      <div id="itens-lista" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0">
+        <span style="font-size:12px;color:#64748b">Total da NF:</span>
+        <span id="total-nf" style="font-size:16px;font-weight:700;color:#059669">R$ 0,00</span>
       </div>
     </div>
   </div>
-  <div class="mf"><button class="btn bs" onclick="cl('mm')">Cancelar</button><button class="btn bp2" onclick="svM()">Salvar</button></div>
+  <div class="mf"><button class="btn bs" onclick="cl('mm')">Cancelar</button><button class="btn bp2" onclick="svM()">💾 Salvar Movimentação</button></div>
 </div></div>
 
 <div class="mbg" id="muser"><div class="modal" style="max-width:420px">
@@ -797,21 +791,67 @@ function dP(id){if(!isG())return;if(confirm('Remover produto?')){db.ref('epis/'+
 // ══════════════════════════════════════════════
 // EMPRESAS
 // ══════════════════════════════════════════════
+var eEid=null;
 function rE(){
   var q=(g('es').value||'').toLowerCase();var tipo=g('et').value;
   var list=emps.filter(function(c){return(!tipo||c.t===tipo)&&(c.n||'').toLowerCase().includes(q);});
   g('estats').innerHTML=['BALCAO','DISTRIBUIDORA','CONSUMIDOR FINAL'].map(function(t){return'<div class="card" style="margin-bottom:0"><div style="padding:12px 16px"><div style="font-size:10px;color:#64748b;margin-bottom:3px">'+t+'</div><div style="font-size:22px;font-weight:700">'+emps.filter(function(c){return c.t===t;}).length+'</div></div></div>';}).join('');
   var rows='';
-  list.forEach(function(c){rows+='<tr><td style="color:#94a3b8;font-size:10px">'+esc(c.id||'')+'</td><td style="font-weight:500">'+esc(c.n||'')+'</td><td><span class="badge '+tb(c.t||'')+'">'+esc(c.t||'')+'</span></td><td style="color:#64748b;font-size:11px">'+esc(c.dept||'')+'</td><td>'+(isG()?'<button class="ib red" onclick="dE(\''+c.id+'\')">🗑️</button>':'')+'</td></tr>';});
+  list.forEach(function(c){rows+='<tr><td style="color:#94a3b8;font-size:10px">'+esc(c.id||'')+'</td><td style="font-weight:500">'+esc(c.n||'')+'</td><td><span class="badge '+tb(c.t||'')+'">'+esc(c.t||'')+'</span></td><td style="color:#64748b;font-size:11px">'+esc(c.dept||'')+'</td><td><div style="display:flex;gap:3px"><button class="ib" onclick="opEEdit(\''+c.id+'\')">✏️</button>'+(isG()?'<button class="ib red" onclick="dE(\''+c.id+'\')">🗑️</button>':'')+'</div></td></tr>';});
   g('etbl').innerHTML=rows||'<tr class="er"><td colspan="5">Nenhuma empresa</td></tr>';
 }
-function opE(){if(!isOp())return;g('en').value='';g('ed').value='EPI';g('me').classList.add('open');}
-function svE(){var n=g('en').value.trim();if(!n){alert('Informe o nome');return;}var id=uid();db.ref('empresas/'+id).set({id:id,n:n,t:g('eti2').value,dept:g('ed').value});cl('me');}
+function opE(){if(!isOp())return;eEid=null;g('me-title').textContent='Nova Empresa / Cliente';g('en').value='';g('ed').value='EPI';g('eti2').value='CONSUMIDOR FINAL';g('me').classList.add('open');}
+function opEEdit(id){
+  if(!isOp())return;eEid=id;
+  var c=emps.find(function(x){return x.id===id;});if(!c)return;
+  g('me-title').textContent='Editar Empresa';
+  g('en').value=c.n||'';g('eti2').value=c.t||'CONSUMIDOR FINAL';g('ed').value=c.dept||'EPI';
+  g('me').classList.add('open');
+}
+function svE(){
+  var n=g('en').value.trim();if(!n){alert('Informe o nome');return;}
+  var id=eEid||uid();
+  db.ref('empresas/'+id).set({id:id,n:n,t:g('eti2').value,dept:g('ed').value});
+  cl('me');
+}
 function dE(id){if(!isG())return;if(confirm('Remover empresa?')){db.ref('empresas/'+id).remove();}}
 
 // ══════════════════════════════════════════════
 // MOVIMENTAÇÕES
 // ══════════════════════════════════════════════
+var itensMov=[];
+
+function prodOpts(selPid){return prods.map(function(p){return'<option value="'+p.id+'"'+(p.id===selPid?' selected':'')+'>'+esc(p.n||'')+'</option>';}).join('');}
+
+function recalcTotalNF(){var total=itensMov.reduce(function(s,it){return s+(it.vt||0);},0);g('total-nf').textContent=brl(total);}
+
+function renderItens(){
+  var lista=g('itens-lista');lista.innerHTML='';
+  itensMov.forEach(function(it,idx){
+    var div=document.createElement('div');
+    div.style.cssText='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;position:relative';
+    div.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11px;font-weight:600;color:#475569">Item '+(idx+1)+'</span>'+(itensMov.length>1?'<button class="ib red" onclick="removeItem('+idx+')" style="font-size:11px">🗑️</button>':'')+'</div>'
+      +'<div class="fgp" style="margin-bottom:8px"><label class="fl">Produto</label><select class="fi" onchange="itemProdChange('+idx+',this.value)">'+prodOpts(it.pid)+'</select></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">'
+      +'<div class="fgp"><label class="fl">Qty</label><input class="fi" type="number" min="1" value="'+(it.qty||1)+'" onchange="itemChange('+idx+',\'qty\',+this.value)"></div>'
+      +'<div class="fgp"><label class="fl">Modalidade</label><select class="fi" onchange="itemModChange('+idx+',this.value)"><option value="manual"'+(it.mod==='manual'?' selected':'')+'>Manual</option><option value="b"'+(it.mod==='b'?' selected':'')+'>Base</option><option value="dp"'+(it.mod==='dp'?' selected':'')+'>Diretoria</option><option value="di"'+(it.mod==='di'?' selected':'')+'>Distribuidora</option><option value="f"'+(it.mod==='f'?' selected':'')+'>Cli. Final</option></select></div>'
+      +'<div class="fgp"><label class="fl">Vl. Unit. (R$)</label><input class="fi" type="number" step="0.01" value="'+(it.vu||0)+'" onchange="itemChange('+idx+',\'vu\',+this.value)"></div>'
+      +'<div class="fgp"><label class="fl">Vl. Total</label><input class="fi" value="'+brl(it.vt||0)+'" readonly style="background:#f0fdf4;color:#059669;font-weight:600"></div></div>';
+    lista.appendChild(div);
+  });
+  recalcTotalNF();
+}
+
+function addItem(){var p=prods[0];itensMov.push({pid:p?p.id:'',qty:1,mod:'manual',vu:0,vt:0});renderItens();}
+function removeItem(idx){itensMov.splice(idx,1);renderItens();}
+function itemProdChange(idx,pid){var p=prods.find(function(x){return x.id===pid;});itensMov[idx].pid=pid;var mod=itensMov[idx].mod;if(mod!=='manual'&&p)itensMov[idx].vu=p[mod]||0;itensMov[idx].vt=(itensMov[idx].qty||1)*(itensMov[idx].vu||0);renderItens();}
+function itemModChange(idx,mod){itensMov[idx].mod=mod;if(mod!=='manual'){var p=prods.find(function(x){return x.id===itensMov[idx].pid;});if(p)itensMov[idx].vu=p[mod]||0;}itensMov[idx].vt=(itensMov[idx].qty||1)*(itensMov[idx].vu||0);renderItens();}
+function itemChange(idx,field,val){itensMov[idx][field]=val;itensMov[idx].vt=(itensMov[idx].qty||1)*(itensMov[idx].vu||0);renderItens();}
+function mTpChange(){}
+function mPrChange(){}
+function applyMod(){}
+function calcTotal(){}
+
 function rM(){
   var q=(g('ms').value||'').toLowerCase();var io=g('mi').value;var ano=g('many').value;
   var list=movs.slice().sort(function(a,b){var da=a.dt||'';var db2=b.dt||'';return da<db2?1:-1;}).filter(function(m){
@@ -833,66 +873,61 @@ function rM(){
 }
 
 function del2025(){
-  if(!isG())return;
-  var cnt=movs.filter(function(m){return(m.dt||'').startsWith('2025');}).length;
+  if(!isG())return;var cnt=movs.filter(function(m){return(m.dt||'').startsWith('2025');}).length;
   if(!cnt){alert('Não há movimentações de 2025.');return;}
   if(!confirm('⚠️ Excluir TODAS as '+cnt+' movimentações de 2025?\n\nEsta ação não pode ser desfeita.'))return;
   movs.filter(function(m){return(m.dt||'').startsWith('2025');}).forEach(function(m){db.ref('movimentos/'+m.id).remove();});
 }
 
 function delAllMovs(){
-  if(!isG())return;
-  if(!movs.length){alert('Não há movimentações para excluir.');return;}
-  var confirmMsg='⚠️ ATENÇÃO!\n\nVocê está prestes a excluir TODAS as '+movs.length+' movimentações do sistema.\n\nEsta ação NÃO pode ser desfeita!\n\nDigite "CONFIRMAR" para prosseguir:';
-  var resp=prompt(confirmMsg);
-  if(resp!=='CONFIRMAR'){alert('Operação cancelada. Nenhum dado foi excluído.');return;}
-  db.ref('movimentos').remove();
-  alert('✅ Todas as movimentações foram excluídas com sucesso.');
+  if(!isG())return;if(!movs.length){alert('Não há movimentações para excluir.');return;}
+  var resp=prompt('⚠️ ATENÇÃO!\n\nVocê está prestes a excluir TODAS as '+movs.length+' movimentações.\n\nEsta ação NÃO pode ser desfeita!\n\nDigite "CONFIRMAR" para prosseguir:');
+  if(resp!=='CONFIRMAR'){alert('Operação cancelada.');return;}
+  db.ref('movimentos').remove();alert('✅ Todas as movimentações foram excluídas.');
 }
 
 function opM(){
   if(!isOp())return;eMid=null;g('mm-title').textContent='Nova Movimentação';
-  g('mpr').innerHTML=prods.map(function(p){return'<option value="'+p.id+'">'+esc(p.n||'')+'</option>';}).join('');
   g('mem').innerHTML=emps.map(function(c){return'<option value="'+c.id+'">'+esc(c.n||'')+'</option>';}).join('');
-  g('mq').value=1;g('mdt').value=new Date().toISOString().slice(0,10);g('mob').value='';
-  g('mnf').value='';g('mnfe').value='';g('mvu').value=0;g('mvt').value=brl(0);
-  g('mu').value=curUser?curUser.name:'';g('mmod').value='manual';mPrChange();
-  g('mm').classList.add('open');
+  g('mdt').value=new Date().toISOString().slice(0,10);g('mob').value='';g('mnf').value='';g('mnfe').value='';
+  g('mu').value=curUser?curUser.name:'';
+  itensMov=[{pid:prods[0]?prods[0].id:'',qty:1,mod:'manual',vu:0,vt:0}];
+  renderItens();g('mm').classList.add('open');
 }
+
 function opMEdit(id){
   if(!isG())return;eMid=id;var m=movs.find(function(x){return x.id===id;});if(!m)return;
   g('mm-title').textContent='Editar Movimentação';
-  g('mpr').innerHTML=prods.map(function(p){return'<option value="'+p.id+'"'+(p.id===m.pid?' selected':'')+'>'+esc(p.n||'')+'</option>';}).join('');
   g('mem').innerHTML=emps.map(function(c){return'<option value="'+c.id+'"'+(c.id===m.eid?' selected':'')+'>'+esc(c.n||'')+'</option>';}).join('');
-  g('mtp').value=m.cod||'RET-';g('mdt').value=m.dt||'';g('mq').value=Math.abs(m.q||0);
-  g('mu').value=m.u||'';g('mob').value=m.obs||'';g('mnf').value=m.nf||'';g('mnfe').value=m.nfe||'';
-  g('mvu').value=m.vu||0;g('mvt').value=brl(m.vt||0);g('mmod').value='manual';
-  g('mm').classList.add('open');
+  g('mtp').value=m.cod||'RET-';g('mdt').value=m.dt||'';g('mu').value=m.u||'';
+  g('mob').value=m.obs||'';g('mnf').value=m.nf||'';g('mnfe').value=m.nfe||'';
+  itensMov=[{pid:m.pid||'',qty:Math.abs(m.q||1),mod:'manual',vu:m.vu||0,vt:m.vt||0}];
+  renderItens();g('mm').classList.add('open');
 }
+
 function dMov(id){if(!isG())return;if(!confirm('Excluir esta movimentação?'))return;db.ref('movimentos/'+id).remove();}
 
-function mPrChange(){var pid=g('mpr').value;var p=prods.find(function(x){return x.id===pid;});if(!p)return;var mod=g('mmod').value;if(mod!=='manual')g('mvu').value=p[mod]||0;calcTotal();}
-function applyMod(){var pid=g('mpr').value;var p=prods.find(function(x){return x.id===pid;});if(!p)return;var mod=g('mmod').value;if(mod!=='manual')g('mvu').value=p[mod]||0;calcTotal();}
-function calcTotal(){var q=Math.abs(+g('mq').value)||0;var vu=+g('mvu').value||0;g('mvt').value=brl(q*vu);}
-
 function svM(){
-  var q=+g('mq').value||1;var cod=g('mtp').value;var isIn=cod.endsWith('+');
+  if(!itensMov.length){alert('Adicione pelo menos um item.');return;}
+  var cod=g('mtp').value;var isIn=cod.endsWith('+');
   var descs={'RET-':'(-) Retirada / Venda','AQU+':'(+) Aquisição / Compra','AJU+':'(+) Ajuste de Estoque','AJU-':'(-) Ajuste de Estoque','DEV+':'(+) Devolução','DES-':'(-) Descarte'};
-  var pid=g('mpr').value;var pr=prods.find(function(p){return p.id===pid;});
   var eid=g('mem').value;var em=emps.find(function(c){return c.id===eid;});
-  var vu=+g('mvu').value||0;var vt=q*vu;
-  var id=eMid||uid();
-  var obj={id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:isIn?q:-q,eid:eid,en:em?em.n:'',dt:g('mdt').value,u:g('mu').value||curUser.name,vu:vu,vt:vt,nf:g('mnf').value,nfe:g('mnfe').value,obs:g('mob').value};
-  db.ref('movimentos/'+id).set(obj);
-  // Atualiza estoque do produto no Firebase
-  if(pr){
-    var delta=isIn?q:-q;
-    if(eMid){
-      var old=movs.find(function(m){return m.id===eMid;});
-      if(old&&old.pid===pid){delta=delta-(old.q||0);}
-      else if(old){db.ref('epis/'+old.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(old.q||0));});}
-    }
-    db.ref('epis/'+pid+'/at').transaction(function(v){return Math.max(0,(v||0)+delta);});
+  var dt=g('mdt').value;var mu=g('mu').value||curUser.name;
+  var mnf=g('mnf').value;var mnfe=g('mnfe').value;var mob=g('mob').value;
+  if(eMid){
+    var it=itensMov[0];var pr=prods.find(function(p){return p.id===it.pid;});
+    var old=movs.find(function(m){return m.id===eMid;});
+    if(old){db.ref('epis/'+old.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(old.q||0));});}
+    var nq=isIn?it.qty:-it.qty;
+    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob});
+    if(pr){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});}
+  }else{
+    itensMov.forEach(function(it){
+      var pr=prods.find(function(p){return p.id===it.pid;});if(!pr)return;
+      var id=uid();var nq=isIn?it.qty:-it.qty;
+      db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob});
+      db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});
+    });
   }
   cl('mm');
 }
