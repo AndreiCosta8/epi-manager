@@ -288,6 +288,7 @@ select:focus,input:focus{border-color:#10b981}
     <div style="flex:1"></div>
     <button class="btn bexp bsm" onclick="exportCSV('movements')">⬇ CSV</button>
     <button class="btn bd2 bsm" id="btn-del2025" onclick="del2025()" style="display:none">🗑️ Excluir 2025</button>
+    <button class="btn bd2 bsm" id="btn-delall" onclick="delAllMovs()" style="display:none">🗑️ Excluir Tudo</button>
     <button class="btn bp2 bsm" id="btn-new-mov" onclick="opM()">➕ Nova</button>
   </div>
   <div class="g3" id="mstats"></div>
@@ -625,8 +626,8 @@ function setupListeners(){
   db.ref('movimentos').on('value',function(snap){
     var data=snap.val();
     if(!data){
-      INIT_MOVS.forEach(function(m){db.ref('movimentos/'+m.id).set(m);});
-      movs=INIT_MOVS.slice();
+      // banco vazio — NÃO recarrega dados iniciais, mantém vazio
+      movs=[];
     } else {
       movs=Object.values(data).filter(function(m){return m&&m.io&&m.pn;});
     }
@@ -689,7 +690,7 @@ function doLogout(){curUser=null;g('appScreen').style.display='none';g('loginScr
 
 function applyPermUI(){
   var s=function(id,v){var e=g(id);if(e)e.style.display=v?'':'none';};
-  s('btn-new-prod',isOp());s('btn-new-emp',isOp());s('btn-new-mov',isOp());s('btn-del2025',isG());
+  s('btn-new-prod',isOp());s('btn-new-emp',isOp());s('btn-new-mov',isOp());s('btn-del2025',isG());s('btn-delall',isG());
   var tha=g('th-acoes');if(tha)tha.style.display=isG()?'':'none';
   var prn=g('price-role-note');if(prn)prn.textContent=isG()?'Você pode editar os preços.':'Somente o Gerente pode editar preços.';
 }
@@ -835,8 +836,18 @@ function del2025(){
   if(!isG())return;
   var cnt=movs.filter(function(m){return(m.dt||'').startsWith('2025');}).length;
   if(!cnt){alert('Não há movimentações de 2025.');return;}
-  if(!confirm('Excluir TODAS as '+cnt+' movimentações de 2025?'))return;
+  if(!confirm('⚠️ Excluir TODAS as '+cnt+' movimentações de 2025?\n\nEsta ação não pode ser desfeita.'))return;
   movs.filter(function(m){return(m.dt||'').startsWith('2025');}).forEach(function(m){db.ref('movimentos/'+m.id).remove();});
+}
+
+function delAllMovs(){
+  if(!isG())return;
+  if(!movs.length){alert('Não há movimentações para excluir.');return;}
+  var confirmMsg='⚠️ ATENÇÃO!\n\nVocê está prestes a excluir TODAS as '+movs.length+' movimentações do sistema.\n\nEsta ação NÃO pode ser desfeita!\n\nDigite "CONFIRMAR" para prosseguir:';
+  var resp=prompt(confirmMsg);
+  if(resp!=='CONFIRMAR'){alert('Operação cancelada. Nenhum dado foi excluído.');return;}
+  db.ref('movimentos').remove();
+  alert('✅ Todas as movimentações foram excluídas com sucesso.');
 }
 
 function opM(){
