@@ -9,8 +9,8 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1a2332;min-height:100vh}
-.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;padding:16px}
-.login-box{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0f172a;padding:16px;position:fixed;inset:0;z-index:999}
+.app{display:none;position:relative;z-index:1}.login-box{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 24px 60px rgba(0,0,0,.35)}
 .login-logo{text-align:center;margin-bottom:24px}
 .login-logo h1{font-size:22px;font-weight:700;color:#0f172a;margin-top:10px}
 .login-logo p{font-size:12px;color:#64748b;margin-top:4px}
@@ -645,7 +645,12 @@ function doLogin(){
   for(var i=0;i<users.length;i++){if(users[i].login===login&&users[i].pass===pass&&users[i].status==='Ativo'){u=users[i];break;}}
   if(!u){g('li-err').style.display='block';return;}
   curUser=u;g('li-err').style.display='none';
-  g('loginScreen').style.display='none';g('appScreen').style.display='block';
+  g('loginScreen').style.display='none';
+  g('loginScreen').style.visibility='hidden';
+  g('loginScreen').style.zIndex='-1';
+  g('appScreen').style.display='block';
+  g('appScreen').style.visibility='visible';
+  g('appScreen').style.zIndex='1';
   g('sb-uname').textContent=u.name;
   var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
   var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
@@ -658,7 +663,13 @@ function doLogin(){
 }
 function doLogout(){
   addLog('user','Logout realizado','🚪');
-  curUser=null;g('appScreen').style.display='none';g('loginScreen').style.display='flex';
+  curUser=null;
+  g('appScreen').style.display='none';
+  g('appScreen').style.visibility='hidden';
+  g('appScreen').style.zIndex='-1';
+  g('loginScreen').style.display='flex';
+  g('loginScreen').style.visibility='visible';
+  g('loginScreen').style.zIndex='1';
   g('li-user').value='';g('li-pass').value='';
 }
 function applyPermUI(){
