@@ -1129,6 +1129,24 @@ function backupJSON(){
 var cs=g('pc');CATS.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;cs.appendChild(o);});
 g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
 setupListeners();
+
+// ── DEEP LINK: ?tab=X navega direto ─────────────────────────────
+(function(){
+  var validTabs=['dashboard','products','companies','movements','prices','reports','users','logs'];
+  var params=new URLSearchParams(window.location.search);
+  var tab=params.get('tab');
+  if(tab && validTabs.indexOf(tab)>=0){
+    window.addEventListener('load', function(){
+      setTimeout(function(){
+        try {
+          // Encontra o item de menu que tem onclick="nav('XXX',this)" e clica nele
+          var item = document.querySelector('.ni[onclick*="nav(\''+tab+'\'"]');
+          if(item) item.click(); else nav(tab, null);
+        } catch(e){ console.warn('Deep-link falhou:',e); }
+      }, 500);
+    });
+  }
+})();
 </script>
 </body>
 </html>
