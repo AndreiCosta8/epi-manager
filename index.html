@@ -821,9 +821,13 @@ function svP(){
   var nome=g('pn').value.trim();if(!nome){alert('Informe o nome');return;}
   var id=ePid||uid();
   var obj={id:id,n:nome,ca:+g('pca').value||0,cat:g('pcat').value,mn:+g('pmn').value,mx:+g('pmx').value,id2:+g('pid2').value,at:+g('pat').value,b:+g('pb').value,dp:+g('pdp').value,di:+g('pdi2').value,f:+g('pf').value};
-  db.ref('epis/'+id).set(obj);
-  addLog('prod',(ePid?'Produto editado: ':'Produto criado: ')+nome,'📦');
-  cl('mp');
+  var btn=g('mp').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  db.ref('epis/'+id).set(obj)
+    .then(function(){addLog('prod',(ePid?'Produto editado: ':'Produto criado: ')+nome,'📦');cl('mp');})
+    .catch(function(err){
+      alert('Erro ao salvar produto: '+(err.message||err)+'\n\nVerifique as regras do Firebase Database Rules.');
+      var btn2=g('mp').querySelector('.bp2');if(btn2){btn2.disabled=false;btn2.textContent='Salvar';}
+    });
 }
 function dP(id){if(!isG())return;var p=prods.find(function(x){return x.id===id;});if(!p)return;if(confirm('Remover produto "'+p.n+'"?')){db.ref('epis/'+id).remove();addLog('prod','Produto removido: '+p.n,'🗑️');}}
 
@@ -873,7 +877,17 @@ function rE(){
 }
 function opE(){if(!isOp())return;eEid=null;g('me-title').textContent='Nova Empresa';g('en').value='';g('eti2').value='CONSUMIDOR FINAL';g('ed').value='EPI';g('me').classList.add('open');}
 function opEEdit(id){if(!isOp())return;eEid=id;var c=emps.find(function(x){return x.id===id;});if(!c){alert('Empresa não encontrada. Recarregue a página e tente novamente.');return;}g('me-title').textContent='Editar Empresa';g('en').value=c.n||'';g('eti2').value=c.t||'CONSUMIDOR FINAL';g('ed').value=c.dept||'EPI';g('me').classList.add('open');}
-function svE(){var n=g('en').value.trim();if(!n){alert('Informe o nome');return;}var id=eEid||uid();var obj={id:id,n:n,t:g('eti2').value,dept:g('ed').value};db.ref('empresas/'+id).set(obj);addLog('emp',(eEid?'Empresa editada: ':'Empresa criada: ')+n,'🏢');cl('me');}
+function svE(){
+  var n=g('en').value.trim();if(!n){alert('Informe o nome');return;}
+  var id=eEid||uid();var obj={id:id,n:n,t:g('eti2').value,dept:g('ed').value};
+  var btn=g('me').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  db.ref('empresas/'+id).set(obj)
+    .then(function(){addLog('emp',(eEid?'Empresa editada: ':'Empresa criada: ')+n,'🏢');cl('me');})
+    .catch(function(err){
+      alert('Erro ao salvar empresa: '+(err.message||err)+'\n\nVerifique as regras do Firebase Database Rules.');
+      var btn2=g('me').querySelector('.bp2');if(btn2){btn2.disabled=false;btn2.textContent='Salvar';}
+    });
+}
 function dE(id){if(!isG())return;var c=emps.find(function(x){return x.id===id;});if(!c)return;if(confirm('Remover empresa "'+c.n+'"?')){db.ref('empresas/'+id).remove();addLog('emp','Empresa removida: '+c.n,'🗑️');}}
 
 // FICHA DO CLIENTE
@@ -980,27 +994,42 @@ function svM(){
   var descs={'RET-':'(-) Retirada / Venda','AQU+':'(+) Aquisição / Compra','AJU+':'(+) Ajuste de Estoque','AJU-':'(-) Ajuste de Estoque','DEV+':'(+) Devolução','DES-':'(-) Descarte'};
   var em=emps.find(function(c){return c.id===eid;});
   var dt=g('mdt').value,mu=g('mu').value||curUser.name,mnf=g('mnf').value,mnfe=g('mnfe').value,mob=g('mob').value;
+  var btnSv=g('mm').querySelector('button.bp2');if(btnSv){btnSv.disabled=true;btnSv.textContent='Salvando...';}
+  function reEnableBtn(){var b=g('mm').querySelector('button.bp2');if(b){b.disabled=false;b.textContent='💾 Salvar Movimentação';}}
   if(eMid){
     var it=itensMov[0],pr=prods.find(function(p){return p.id===it.pid;});
     var old=movs.find(function(m){return m.id===eMid;});
     if(old){db.ref('epis/'+old.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(old.q||0));});}
     var nq=isIn?it.qty:-it.qty;
-    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob});
-    if(pr){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});}
-    addLog('mov','Movimentação editada: '+it.qty+'x '+(pr?pr.n:''),'✏️');
+    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob})
+      .then(function(){
+        if(pr){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});}
+        addLog('mov','Movimentação editada: '+it.qty+'x '+(pr?pr.n:''),'✏️');
+        cl('mm');
+      })
+      .catch(function(err){
+        alert('Erro ao salvar movimentação:\n'+(err.message||err)+'\n\nVerifique as regras do Firebase (Database Rules).');
+        reEnableBtn();
+      });
   }else{
-    var logItens=[];
+    var logItens=[],promises=[];
     itensMov.forEach(function(it){
       var pr=prods.find(function(p){return p.id===it.pid;});if(!pr)return;
       var id=uid(),nq=isIn?it.qty:-it.qty;
-      db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob});
-      db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});
+      promises.push(
+        db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob})
+          .then(function(){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});})
+      );
       logItens.push(it.qty+'x '+pr.n);
     });
-    if(!logItens.length){alert('Nenhum item válido encontrado. Verifique se os produtos estão corretamente selecionados.');return;}
-    addLog('mov',descs[cod]+': '+logItens.join(', ')+(mnf?' ('+mnf+')':''),'↔️');
+    if(!logItens.length){alert('Nenhum item válido encontrado. Verifique se os produtos estão corretamente selecionados.');reEnableBtn();return;}
+    Promise.all(promises)
+      .then(function(){addLog('mov',descs[cod]+': '+logItens.join(', ')+(mnf?' ('+mnf+')':''),'↔️');cl('mm');})
+      .catch(function(err){
+        alert('Erro ao salvar movimentação:\n'+(err.message||err)+'\n\nVerifique as regras do Firebase (Database Rules).');
+        reEnableBtn();
+      });
   }
-  cl('mm');
 }
 
 // ══════════════════════════════════════════════
