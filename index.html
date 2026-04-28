@@ -699,8 +699,25 @@ function stab(id,el){
   document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
   g(id).classList.add('active');el.classList.add('active');curTab=id;rR();
 }
-function cl(id){g(id).classList.remove('open');}
-document.querySelectorAll('.mbg').forEach(function(m){m.addEventListener('click',function(e){if(e.target===m)m.classList.remove('open');});});
+function cl(id){
+  g(id).classList.remove('open');
+  // Reseta variáveis de edição ao fechar modais
+  if(id==='mp')ePid=null;
+  if(id==='me')eEid=null;
+  if(id==='mm'){eMid=null;itensMov=[];}
+  if(id==='muser')eUid=null;
+}
+document.querySelectorAll('.mbg').forEach(function(m){m.addEventListener('click',function(e){
+  if(e.target===m){
+    m.classList.remove('open');
+    // Reseta variáveis ao fechar clicando fora
+    var id=m.id;
+    if(id==='mp')ePid=null;
+    if(id==='me')eEid=null;
+    if(id==='mm'){eMid=null;itensMov=[];}
+    if(id==='muser')eUid=null;
+  }
+});});
 
 // ══════════════════════════════════════════════
 // DASHBOARD
@@ -854,7 +871,7 @@ function rE(){
   });
   g('etbl').innerHTML=rows||'<tr class="er"><td colspan="7">Nenhuma empresa</td></tr>';
 }
-function opE(){if(!isOp())return;eEid=null;g('me-title').textContent='Nova Empresa';g('en').value='';g('ed').value='EPI';g('eti2').value='CONSUMIDOR FINAL';g('me').classList.add('open');}
+function opE(){if(!isOp())return;eEid=null;g('me-title').textContent='Nova Empresa';g('en').value='';g('eti2').value='CONSUMIDOR FINAL';g('ed').value='EPI';g('me').classList.add('open');}
 function opEEdit(id){if(!isOp())return;eEid=id;var c=emps.find(function(x){return x.id===id;});if(!c)return;g('me-title').textContent='Editar Empresa';g('en').value=c.n||'';g('eti2').value=c.t||'CONSUMIDOR FINAL';g('ed').value=c.dept||'EPI';g('me').classList.add('open');}
 function svE(){var n=g('en').value.trim();if(!n){alert('Informe o nome');return;}var id=eEid||uid();var obj={id:id,n:n,t:g('eti2').value,dept:g('ed').value};db.ref('empresas/'+id).set(obj);addLog('emp',(eEid?'Empresa editada: ':'Empresa criada: ')+n,'🏢');cl('me');}
 function dE(id){if(!isG())return;var c=emps.find(function(x){return x.id===id;});if(!c)return;if(confirm('Remover empresa "'+c.n+'"?')){db.ref('empresas/'+id).remove();addLog('emp','Empresa removida: '+c.n,'🗑️');}}
@@ -934,7 +951,9 @@ function updMonths(){g('mmes').value='';}
 
 function opM(){
   if(!isOp())return;eMid=null;g('mm-title').textContent='Nova Movimentação';
-  g('mem').innerHTML=emps.map(function(c){return'<option value="'+c.id+'">'+esc(c.n||'')+'</option>';}).join('');
+  var empOpts=emps.map(function(c){return'<option value="'+c.id+'">'+esc(c.n||'')+'</option>';}).join('');
+  g('mem').innerHTML=empOpts||'<option value="">-- Nenhuma empresa cadastrada --</option>';
+  if(!emps.length){alert('Cadastre pelo menos uma empresa antes de lançar uma movimentação.');return;}
   g('mdt').value=new Date().toISOString().slice(0,10);g('mob').value='';g('mnf').value='';g('mnfe').value='';
   g('mu').value=curUser?curUser.name:'';
   itensMov=[{pid:prods[0]?prods[0].id:'',qty:1,mod:'manual',vu:0,vt:0}];
@@ -953,9 +972,11 @@ function dMov(id){if(!isG())return;if(!confirm('Excluir esta movimentação?'))r
 
 function svM(){
   if(!itensMov.length){alert('Adicione pelo menos um item.');return;}
+  var eid=g('mem').value;
+  if(!eid){alert('Selecione uma empresa/cliente.');return;}
   var cod=g('mtp').value,isIn=cod.endsWith('+');
   var descs={'RET-':'(-) Retirada / Venda','AQU+':'(+) Aquisição / Compra','AJU+':'(+) Ajuste de Estoque','AJU-':'(-) Ajuste de Estoque','DEV+':'(+) Devolução','DES-':'(-) Descarte'};
-  var eid=g('mem').value,em=emps.find(function(c){return c.id===eid;});
+  var em=emps.find(function(c){return c.id===eid;});
   var dt=g('mdt').value,mu=g('mu').value||curUser.name,mnf=g('mnf').value,mnfe=g('mnfe').value,mob=g('mob').value;
   if(eMid){
     var it=itensMov[0],pr=prods.find(function(p){return p.id===it.pid;});
