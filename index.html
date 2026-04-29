@@ -204,6 +204,8 @@ select:focus,input:focus{border-color:#10b981}
   <div class="nav-sec">Admin</div>
   <div class="ni" id="nav-users" onclick="nav('users',this)">👥 Usuários</div>
   <div class="ni" id="nav-logs" onclick="nav('logs',this)">📝 Log de Atividades</div>
+  <div class="ni" id="nav-hist" onclick="nav('hist',this)" style="display:none">📅 Histórico Gráfico</div>
+  <div class="ni" id="nav-comissao" onclick="nav('comissao',this)" style="display:none">💸 Minha Comissão</div>
   <div class="sfooter"><div id="sbstats" style="color:#475569;font-size:10.5px"></div></div>
 </div>
 
@@ -364,7 +366,47 @@ select:focus,input:focus{border-color:#10b981}
   <div class="card"><div id="log-lista" style="padding:0 16px;max-height:600px;overflow-y:auto"></div></div>
 </div>
 
+
+<!-- HISTÓRICO GRÁFICO -->
+<div class="pg" id="pg-hist">
+  <div class="al al-b">📅 Insira dados históricos para completar o gráfico de movimentações. Esses dados não alteram o estoque real.</div>
+  <div class="fr">
+    <select id="hist-ano" onchange="rHist()"><option value="2026">2026</option><option value="2025">2025</option></select>
+    <div style="flex:1"></div>
+    <button class="btn bp2 bsm" onclick="opHistModal()">➕ Adicionar Mês</button>
+  </div>
+  <div class="card">
+    <div class="tscroll">
+      <table>
+        <thead><tr><th>Mês</th><th>Descrição</th><th>Entradas (Qtd)</th><th>Saídas (Qtd)</th><th>Valor Saídas (R$)</th><th>Valor Entradas (R$)</th><th></th></tr></thead>
+        <tbody id="hist-tbl"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- COMISSÃO -->
+<div class="pg" id="pg-comissao">
+  <div class="al al-b">💸 Comissão pessoal calculada sobre o total de vendas (saídas) realizadas. Taxa: <strong>1,5%</strong>.</div>
+  <div class="fr">
+    <select id="com-ano" onchange="rComissao()"><option value="2026">2026</option><option value="2025">2025</option></select>
+    <div style="flex:1"></div>
+  </div>
+  <div class="kgrid" id="com-kpis"></div>
+  <div class="card">
+    <div class="ch"><h3>Detalhamento Mensal</h3></div>
+    <div class="tscroll">
+      <table>
+        <thead><tr><th>Mês</th><th>Vendas Reais</th><th>Vendas Históricas</th><th>Total Vendas</th><th>Comissão (1,5%)</th><th>Status</th></tr></thead>
+        <tbody id="com-tbl"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </div><!-- main -->
+
+
 </div><!-- app -->
 
 <!-- MODAIS -->
@@ -497,6 +539,29 @@ select:focus,input:focus{border-color:#10b981}
   <div class="mf"><button class="btn bs2" onclick="cl('m-cliente')">Fechar</button></div>
 </div></div>
 
+<!-- Modal Histórico -->
+<div class="mbg" id="m-hist"><div class="modal">
+  <div class="mh"><h3 id="hist-modal-title">Adicionar Histórico Mensal</h3><button class="ib" onclick="cl('m-hist')">✕</button></div>
+  <div class="mb">
+    <div class="fg">
+      <div class="fgp"><label class="fl">Ano</label><select class="fi" id="hist-m-ano"><option value="2026">2026</option><option value="2025">2025</option></select></div>
+      <div class="fgp"><label class="fl">Mês *</label><select class="fi" id="hist-m-mes"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div>
+    </div>
+    <div class="fgp"><label class="fl">Descrição (opcional)</label><input class="fi" id="hist-m-desc" placeholder="Ex: Vendas jan/26 retroativas"></div>
+    <div class="fg">
+      <div class="fgp"><label class="fl">Entradas (Qtd)</label><input class="fi" type="number" id="hist-m-e" value="0" min="0"></div>
+      <div class="fgp"><label class="fl">Valor Entradas (R$)</label><input class="fi" type="number" id="hist-m-ve" value="0" step="0.01" min="0"></div>
+    </div>
+    <div class="fg">
+      <div class="fgp"><label class="fl">Saídas (Qtd)</label><input class="fi" type="number" id="hist-m-s" value="0" min="0"></div>
+      <div class="fgp"><label class="fl">Valor Saídas (R$)</label><input class="fi" type="number" id="hist-m-vs" value="0" step="0.01" min="0"></div>
+    </div>
+    <div class="al al-b" style="font-size:11px;margin-top:4px">💡 Se já existe registro para este mês/ano, ele será <strong>somado</strong> ao existente.</div>
+  </div>
+  <div class="mf"><button class="btn bs2" onclick="cl('m-hist')">Cancelar</button><button class="btn bp2" onclick="svHist()">💾 Salvar</button></div>
+</div></div>
+
+
 <script>
 // ══════════════════════════════════════════════
 // FIREBASE
@@ -519,9 +584,9 @@ const db=firebase.database();
 var CATS=["Luvas","Aventais","Blusões","Calças","Perneiras","Mangotes","Outros"];
 var curUser=null,curPage='dashboard',curTab='re',curFichaPid=null,curClienteEid=null;
 var ePid=null,eUid=null,eMid=null,eEid=null;
-var prods=[],emps=[],movs=[],users=[],logs=[];
+var prods=[],emps=[],movs=[],users=[],logs=[],historico=[];
 var itensMov=[];
-var fbLoaded={users:false,prods:false,emps:false,movs:false,logs:false};
+var fbLoaded={users:false,prods:false,emps:false,movs:false,logs:false,hist:true};
 
 // ══════════════════════════════════════════════
 // DADOS INICIAIS (usados se banco estiver vazio)
@@ -597,6 +662,11 @@ function setupListeners(){
     movs=d?Object.keys(d).map(function(k){var v=d[k];if(!v)return null;if(!v.id)v.id=k;return v;}).filter(function(m){return m&&m.io&&m.pn;}):[]; 
     fbLoaded.movs=true;checkLoaded();if(curUser)refreshPage();
   });
+  db.ref('historico').on('value',function(snap){
+    var d=snap.val();
+    historico=d?Object.values(d).filter(function(h){return h&&h.ano;}):[]; 
+    if(curUser)rD();
+  });
   db.ref('logs').on('value',function(snap){
     var d=snap.val();
     logs=d?Object.values(d).sort(function(a,b){return(b.ts||'')>(a.ts||'')?1:-1;}):[]; 
@@ -643,7 +713,12 @@ function closeSidebar(){g('sidebar').classList.remove('open');g('overlay').class
 function doLogin(){
   var login=g('li-user').value.trim(),pass=g('li-pass').value,u=null;
   for(var i=0;i<users.length;i++){if(users[i].login===login&&users[i].pass===pass&&users[i].status==='Ativo'){u=users[i];break;}}
-  if(!u){g('li-err').style.display='block';return;}
+  if(!u){
+    var errEl=g('li-err');
+    if(users.length===0){errEl.textContent='⏳ Banco ainda carregando... Aguarde e tente novamente.';}
+    else{errEl.textContent='❌ Usuário ou senha incorretos.';}
+    errEl.style.display='block';return;
+  }
   curUser=u;g('li-err').style.display='none';
   g('loginScreen').style.display='none';
   g('loginScreen').style.visibility='hidden';
@@ -678,6 +753,8 @@ function applyPermUI(){
   var tha=g('th-acoes');if(tha)tha.style.display=isG()?'':'none';
   var prn=g('price-role-note');if(prn)prn.textContent=isG()?'Você pode editar os preços.':'Somente o Gerente pode editar preços.';
   var bcl=g('btn-clear-logs');if(bcl)bcl.style.display=isG()?'':'none';
+  var nh=g('nav-hist');if(nh)nh.style.display=isG()?'flex':'none';
+  var nc=g('nav-comissao');if(nc)nc.style.display=isG()?'flex':'none';
 }
 
 // ══════════════════════════════════════════════
@@ -687,12 +764,12 @@ function nav(id,el){
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
   g('pg-'+id).classList.add('active');if(el)el.classList.add('active');curPage=id;
-  var t={dashboard:'Dashboard',products:'Produtos / EPI',companies:'Empresas',movements:'Movimentações',prices:'Tabela de Preços',reports:'Relatórios',users:'Usuários',logs:'Log de Atividades'};
+  var t={dashboard:'Dashboard',products:'Produtos / EPI',companies:'Empresas',movements:'Movimentações',prices:'Tabela de Preços',reports:'Relatórios',users:'Usuários',logs:'Log de Atividades',hist:'Histórico do Gráfico',comissao:'💸 Minha Comissão'};
   g('ptitle').textContent=t[id]||id;
   closeSidebar();applyPermUI();
   if(id==='dashboard')rD();if(id==='products')rP();if(id==='companies')rE();
   if(id==='movements')rM();if(id==='prices')rPR();if(id==='reports')rR();
-  if(id==='users')rU();if(id==='logs')rLogs();
+  if(id==='users')rU();if(id==='logs')rLogs();if(id==='hist')rHist();if(id==='comissao')rComissao();
 }
 function stab(id,el){
   document.querySelectorAll('.tp').forEach(function(t){t.classList.remove('active');});
@@ -706,6 +783,7 @@ function cl(id){
   if(id==='me')eEid=null;
   if(id==='mm'){eMid=null;itensMov=[];}
   if(id==='muser')eUid=null;
+  if(id==='m-hist'){};
 }
 document.querySelectorAll('.mbg').forEach(function(m){m.addEventListener('click',function(e){
   if(e.target===m){
@@ -728,6 +806,9 @@ function rD(){
   var tv=prods.reduce(function(s,p){return s+(p.at||0)*(p.b||0);},0);
   var tvF=prods.reduce(function(s,p){return s+(p.at||0)*(p.f||0);},0);
   var totalVendas=movs.filter(function(m){return m.io==='Saída';}).reduce(function(s,m){return s+(m.vt||0);},0);
+  var anoAtualKpi=new Date().getFullYear().toString();
+  var totalVendasHist=historico.filter(function(h){return h.ano===anoAtualKpi;}).reduce(function(s,h){return s+(h.vs||0);},0);
+  totalVendas+=totalVendasHist;
 
   g('dash-kpis').innerHTML=
     '<div class="kpi '+(low.length>0?'r':'g')+(crit.length>0?' crit-kpi':'')+'"><div class="kl">Estoque Baixo</div><div class="kv" style="color:'+(low.length>0?'#ef4444':'#10b981')+'">'+(crit.length>0?'🚨 ':'')+low.length+'</div><div class="ks">'+(crit.length>0?crit.length+' crítico(s)':'tudo ok')+'</div><div class="ki">⚠️</div></div>'
@@ -744,12 +825,14 @@ function rD(){
   }
   g('dash-crit-alert').innerHTML=critHtml;
 
-  // Gráfico real por mês
+  // Gráfico: real + histórico
   var anoAtual=new Date().getFullYear().toString();
   var meses=['01','02','03','04','05','06','07','08','09','10','11','12'];
   var mNomes=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
   var mMap={};
   movs.forEach(function(m){if(!m.dt)return;var yr=m.dt.slice(0,4);if(yr!==anoAtual)return;var mo=m.dt.slice(5,7);if(!mMap[mo])mMap[mo]={e:0,s:0,ve:0,vs:0};if(m.io==='Entrada'){mMap[mo].e+=Math.abs(m.q||0);mMap[mo].ve+=(m.vt||0);}else{mMap[mo].s+=Math.abs(m.q||0);mMap[mo].vs+=(m.vt||0);}});
+  // Mescla histórico
+  historico.filter(function(h){return h.ano===anoAtual;}).forEach(function(h){var mo=h.mes;if(!mMap[mo])mMap[mo]={e:0,s:0,ve:0,vs:0};mMap[mo].e+=(h.e||0);mMap[mo].s+=(h.s||0);mMap[mo].ve+=(h.ve||0);mMap[mo].vs+=(h.vs||0);});
   var allE=meses.map(function(m){return(mMap[m]&&mMap[m].e)||0;});
   var allS=meses.map(function(m){return(mMap[m]&&mMap[m].s)||0;});
   var mx=Math.max.apply(null,allE.concat(allS).concat([1]));
@@ -1082,6 +1165,9 @@ function rR(){
   // Financeiro
   var tvb=prods.reduce(function(s,p){return s+(p.at||0)*(p.b||0);},0);var tvf=prods.reduce(function(s,p){return s+(p.at||0)*(p.f||0);},0);var mg=tvb>0?Math.round((tvf-tvb)/tvb*100):0;
   var totalVendas=movs.filter(function(m){return m.io==='Saída';}).reduce(function(s,m){return s+(m.vt||0);},0);
+  var anoAtualKpi=new Date().getFullYear().toString();
+  var totalVendasHist=historico.filter(function(h){return h.ano===anoAtualKpi;}).reduce(function(s,h){return s+(h.vs||0);},0);
+  totalVendas+=totalVendasHist;
   g('rfk').innerHTML='<div class="kpi g"><div class="kl">Valor a Custo</div><div class="kv" style="font-size:16px">'+brl(tvb)+'</div></div><div class="kpi b"><div class="kl">Valor Preço Final</div><div class="kv" style="font-size:16px">'+brl(tvf)+'</div></div><div class="kpi w"><div class="kl">Potencial Margem</div><div class="kv" style="font-size:16px">'+brl(tvf-tvb)+'</div></div><div class="kpi r" style="cursor:default"><div class="kl">Total já Vendido</div><div class="kv" style="font-size:16px">'+brl(totalVendas)+'</div><div class="ks">'+mg+'% margem média</div></div>';
   var fr='';prods.slice().sort(function(a,b){return(b.at||0)*(b.b||0)-(a.at||0)*(a.b||0);}).forEach(function(p){var m2=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;fr+='<tr><td style="font-size:11px;font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.n||'')+'</td><td>'+(p.at||0)+'</td><td style="font-size:11px">'+brl(p.b)+'</td><td style="font-size:11px;color:#059669;font-weight:500">'+brl(p.f)+'</td><td style="font-size:11px">'+brl((p.at||0)*(p.b||0))+'</td><td style="font-size:11px;font-weight:600;color:#059669">'+brl((p.at||0)*(p.f||0))+'</td><td><span class="badge bb">'+m2+'%</span></td></tr>';});g('rftbl').innerHTML=fr;
 }
@@ -1200,6 +1286,135 @@ setupListeners();
     });
   }
 })();
+
+// ══════════════════════════════════════════════
+// HISTÓRICO DO GRÁFICO
+// ══════════════════════════════════════════════
+var eHistId=null;
+function rHist(){
+  var ano=g('hist-ano')?g('hist-ano').value:'2026';
+  var mNomes=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  var list=historico.filter(function(h){return h.ano===ano;}).sort(function(a,b){return a.mes>b.mes?1:-1;});
+  var rows='';
+  list.forEach(function(h){
+    rows+='<tr>'
+      +'<td style="font-weight:500">'+mNomes[parseInt(h.mes,10)]+'</td>'
+      +'<td style="font-size:11px;color:#64748b">'+esc(h.desc||'—')+'</td>'
+      +'<td style="color:#10b981;font-weight:600">'+(h.e||0)+'</td>'
+      +'<td style="color:#f59e0b;font-weight:600">'+(h.s||0)+'</td>'
+      +'<td style="color:#059669;font-weight:600">'+brl(h.vs)+'</td>'
+      +'<td style="color:#3b82f6;font-weight:600">'+brl(h.ve)+'</td>'
+      +'<td><button class="ib red" onclick="dHist('+h.id+')" title="Excluir">🗑️</button></td>'
+      +'</tr>';
+  });
+  if(g('hist-tbl'))g('hist-tbl').innerHTML=rows||'<tr class="er"><td colspan="7">Nenhum histórico cadastrado para '+ano+'</td></tr>';
+}
+function opHistModal(){
+  g('hist-modal-title').textContent='Adicionar Histórico Mensal';
+  g('hist-m-e').value=0;g('hist-m-s').value=0;g('hist-m-ve').value=0;g('hist-m-vs').value=0;g('hist-m-desc').value='';
+  g('m-hist').classList.add('open');
+}
+function svHist(){
+  var ano=g('hist-m-ano').value;
+  var mes=g('hist-m-mes').value;
+  var desc=g('hist-m-desc').value.trim();
+  var e=parseFloat(g('hist-m-e').value)||0;
+  var s=parseFloat(g('hist-m-s').value)||0;
+  var ve=parseFloat(g('hist-m-ve').value)||0;
+  var vs=parseFloat(g('hist-m-vs').value)||0;
+  if(e===0&&s===0&&ve===0&&vs===0){alert('Informe ao menos um valor maior que zero.');return;}
+  // Check if entry for this month/year already exists — if so, sum
+  var existing=historico.find(function(h){return h.ano===ano&&h.mes===mes;});
+  var btn=g('m-hist').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  if(existing){
+    var upd={id:existing.id,ano:ano,mes:mes,desc:desc||existing.desc,e:(existing.e||0)+e,s:(existing.s||0)+s,ve:(existing.ve||0)+ve,vs:(existing.vs||0)+vs};
+    db.ref('historico/'+existing.id).set(upd)
+      .then(function(){addLog('hist','Histórico atualizado: '+ano+'/'+mes,'📅');cl('m-hist');rHist();rD();})
+      .catch(function(err){alert('Erro: '+(err.message||err));if(btn){btn.disabled=false;btn.textContent='💾 Salvar';}});
+  }else{
+    var id=uid();
+    var obj={id:id,ano:ano,mes:mes,desc:desc,e:e,s:s,ve:ve,vs:vs};
+    db.ref('historico/'+id).set(obj)
+      .then(function(){addLog('hist','Histórico adicionado: '+ano+'/'+mes,'📅');cl('m-hist');rHist();rD();})
+      .catch(function(err){alert('Erro: '+(err.message||err));if(btn){btn.disabled=false;btn.textContent='💾 Salvar';}});
+  }
+}
+function dHist(id){
+  if(!confirm('Remover este registro histórico?'))return;
+  db.ref('historico/'+id).remove().then(function(){addLog('hist','Histórico removido','🗑️');rHist();rD();});
+}
+
+// ══════════════════════════════════════════════
+// COMISSÃO
+// ══════════════════════════════════════════════
+var TAXA_COM=0.015;
+function rComissao(){
+  var ano=(g('com-ano')&&g('com-ano').value)||new Date().getFullYear().toString();
+  var meses=['01','02','03','04','05','06','07','08','09','10','11','12'];
+  var mNomes=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  // Build per-month real sales
+  var realMap={};
+  movs.forEach(function(m){
+    if(m.io!=='Saída'||!m.dt)return;
+    var yr=m.dt.slice(0,4);if(yr!==ano)return;
+    var mo=m.dt.slice(5,7);
+    if(!realMap[mo])realMap[mo]=0;
+    realMap[mo]+=(m.vt||0);
+  });
+
+  // Build per-month hist sales
+  var histMap={};
+  historico.filter(function(h){return h.ano===ano;}).forEach(function(h){
+    if(!histMap[h.mes])histMap[h.mes]=0;
+    histMap[h.mes]+=(h.vs||0);
+  });
+
+  var totalReal=0,totalHist=0,totalCom=0;
+  var rows='';
+  var mesAtual=new Date().getMonth(); // 0-indexed
+  var anoAtual=new Date().getFullYear().toString();
+
+  meses.forEach(function(m,i){
+    var vReal=realMap[m]||0;
+    var vHist=histMap[m]||0;
+    var vTotal=vReal+vHist;
+    var com=vTotal*TAXA_COM;
+    totalReal+=vReal;totalHist+=vHist;totalCom+=com;
+    var isFuture=(ano===anoAtual&&i>mesAtual);
+    var status=isFuture?'<span class="badge bgr">Futuro</span>':(vTotal>0?'<span class="badge bg">✓ Apurado</span>':'<span class="badge bgr">Sem vendas</span>');
+    rows+='<tr'+(isFuture?' style="opacity:.45"':'')+'>'
+      +'<td style="font-weight:500">'+mNomes[i]+'</td>'
+      +'<td style="color:#059669">'+brl(vReal)+'</td>'
+      +'<td style="color:#3b82f6">'+brl(vHist)+'</td>'
+      +'<td style="font-weight:600">'+brl(vTotal)+'</td>'
+      +'<td style="font-weight:700;color:#8b5cf6;font-size:13px">'+brl(com)+'</td>'
+      +'<td>'+status+'</td>'
+      +'</tr>';
+  });
+  // Total row
+  rows+='<tr style="background:#f8fafc;font-weight:700;border-top:2px solid #e2e8f0">'
+    +'<td>TOTAL '+ano+'</td>'
+    +'<td style="color:#059669">'+brl(totalReal)+'</td>'
+    +'<td style="color:#3b82f6">'+brl(totalHist)+'</td>'
+    +'<td style="font-weight:700">'+brl(totalReal+totalHist)+'</td>'
+    +'<td style="font-weight:700;color:#8b5cf6;font-size:14px">'+brl(totalCom)+'</td>'
+    +'<td></td>'
+    +'</tr>';
+
+  if(g('com-tbl'))g('com-tbl').innerHTML=rows;
+
+  // KPIs
+  var mesIdx=parseInt(meses[new Date().getMonth()],10)-1;
+  var mesStr=meses[new Date().getMonth()];
+  var vendaMes=(realMap[mesStr]||0)+(histMap[mesStr]||0);
+  if(g('com-kpis'))g('com-kpis').innerHTML=
+    '<div class="kpi g"><div class="kl">Comissão Total '+ano+'</div><div class="kv" style="font-size:20px;color:#8b5cf6">'+brl(totalCom)+'</div><div class="ks">sobre '+brl(totalReal+totalHist)+' em vendas</div><div class="ki">💸</div></div>'
+    +'<div class="kpi b"><div class="kl">Comissão do Mês Atual</div><div class="kv" style="font-size:20px;color:#3b82f6">'+brl(vendaMes*TAXA_COM)+'</div><div class="ks">vendas: '+brl(vendaMes)+'</div><div class="ki">📅</div></div>'
+    +'<div class="kpi w"><div class="kl">Vendas Reais ('+ano+')</div><div class="kv" style="font-size:18px">'+brl(totalReal)+'</div><div class="ks">movimentações reais</div><div class="ki">📦</div></div>'
+    +'<div class="kpi" style="border-color:#e2e8f0"><div class="kl">Vendas Históricas ('+ano+')</div><div class="kv" style="font-size:18px">'+brl(totalHist)+'</div><div class="ks">dados do gráfico</div><div class="ki">📅</div></div>';
+}
+
 </script>
 </body>
 </html>
