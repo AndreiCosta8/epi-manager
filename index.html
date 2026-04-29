@@ -877,7 +877,7 @@ function applyPermUI(){
   var prn=g('price-role-note');if(prn)prn.textContent=isG()?'Você pode editar os preços.':'Somente o Gerente pode editar preços.';
   var bcl=g('btn-clear-logs');if(bcl)bcl.style.display=isG()?'':'none';
   var nh=g('nav-hist');if(nh)nh.style.display=isG()?'flex':'none';
-  var nc=g('nav-comissao');if(nc)nc.style.display=isG()?'flex':'none';
+  var nc=g('nav-comissao');if(nc)nc.style.display='none'; // oculto — acesse com Ctrl+Shift+C
 }
 
 // ══════════════════════════════════════════════
@@ -956,7 +956,7 @@ function rD(){
   var extraKpis='<div class="kpi b" style="border-top:3px solid #3b82f6"><div class="kl">Ticket Médio</div><div class="kv" style="font-size:18px;color:#1e40af">'+brl(ticketMedio)+'</div><div class="ks">por movimentação</div><div class="ki">🎯</div></div>'
     +'<div class="kpi g" style="border-top:3px solid #10b981"><div class="kl">Clientes Ativos (Mês)</div><div class="kv" style="color:#065f46">'+clientesMes+'</div><div class="ks">compraram este mês</div><div class="ki">🤝</div></div>'
     +'<div class="kpi '+(prodsSemEntrada>0?'w':'g')+'"><div class="kl">Prod. s/ Reposição</div><div class="kv" style="font-size:18px;color:'+(prodsSemEntrada>0?'#92400e':'#065f46')+'">'+prodsSemEntrada+'</div><div class="ks">nunca tiveram entrada</div><div class="ki">📥</div></div>'
-    +'<div class="kpi" style="border:1px solid #ede9fe;background:linear-gradient(145deg,#faf5ff,#ede9fe)"><div class="kl">Comissão do Mês</div><div class="kv" style="font-size:18px;color:#5b21b6">'+brl(saidasMov.filter(function(m){return(m.dt||'').startsWith(mesAtStr);}).reduce(function(s,m){return s+(m.vt||0);},0)*0.015)+'</div><div class="ks">1,5% sobre vendas</div><div class="ki">💸</div></div>';
+    +'<div class="kpi g" style="border-top:3px solid #10b981"><div class="kl">Margem Potencial</div><div class="kv" style="font-size:18px;color:#059669">'+brl(prods.reduce(function(s,p){return s+(p.at||0)*((p.f||0)-(p.b||0));},0))+'</div><div class="ks">lucro se vender tudo</div><div class="ki">📈</div></div>';
   if(g('dash-extra-kpis'))g('dash-extra-kpis').innerHTML=extraKpis;
   g('dash-crit-alert').innerHTML=critHtml;
 
@@ -1415,6 +1415,18 @@ function backupJSON(){
 // ══════════════════════════════════════════════
 var cs=g('pc');CATS.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;cs.appendChild(o);});
 g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+// Atalho secreto Ctrl+Shift+C → abre Minha Comissão
+document.addEventListener('keydown',function(e){
+  if(e.ctrlKey&&e.shiftKey&&e.key==='C'&&curUser&&isG()){
+    var nc=g('nav-comissao');
+    document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
+    document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
+    g('pg-comissao').classList.add('active');
+    g('ptitle').textContent='💸 Minha Comissão';
+    rComissao();
+    e.preventDefault();
+  }
+});
 setupListeners();
 
 // ── DEEP LINK: ?tab=X navega direto ─────────────────────────────
