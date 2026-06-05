@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -700,6 +701,7 @@ const firebaseConfig={
 };
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
+const auth=firebase.auth();
 
 // ══════════════════════════════════════════════
 // ESTADO
@@ -714,10 +716,16 @@ var fbLoaded={users:false,prods:false,emps:false,movs:false,logs:false,hist:true
 // ══════════════════════════════════════════════
 // DADOS INICIAIS (usados se banco estiver vazio)
 // ══════════════════════════════════════════════
+// Mapeamento login → email Firebase Auth
+var LOGIN_MAP={
+  "andrei":  {email:"andrei.costa@uniluvas.com.br", name:"Andrei Costa",     role:"Gerente",      status:"Ativo"},
+  "railson": {email:"railson@epi-parauapebas.app",  name:"Railson Barros",   role:"Operador",     status:"Ativo"},
+  "viewer":  {email:"viewer@epi-parauapebas.app",   name:"Visualizador",     role:"Visualizador", status:"Inativo"}
+};
 var INIT_USERS=[
-  {id:"u1",login:"gerente",pass:"gerente123",name:"Administrador Gerente",role:"Gerente",status:"Ativo"},
-  {id:"u2",login:"operador",pass:"op123",name:"Operador de Estoque",role:"Operador",status:"Ativo"},
-  {id:"u3",login:"viewer",pass:"view123",name:"Visualizador",role:"Visualizador",status:"Ativo"}
+  {id:"u1",login:"andrei", name:"Andrei Costa",   role:"Gerente",      status:"Ativo"},
+  {id:"u2",login:"railson",name:"Railson Barros",  role:"Operador",     status:"Ativo"},
+  {id:"u3",login:"viewer", name:"Visualizador",    role:"Visualizador", status:"Inativo"}
 ];
 
 // ══════════════════════════════════════════════
@@ -766,7 +774,7 @@ function setupListeners(){
 
   db.ref('usuarios').on('value',function(snap){
     var d=snap.val();
-    if(!d){INIT_USERS.forEach(function(u){db.ref('usuarios/'+u.id).set(u);});users=INIT_USERS.slice();}
+    if(!d){INIT_USERS.forEach(function(u){var obj={id:u.id,login:u.login,name:u.name,role:u.role,status:u.status};db.ref('usuarios/'+obj.id).set(obj);});users=INIT_USERS.slice();}
     else users=Object.values(d).filter(function(u){return u&&u.login;});
     fbLoaded.users=true;checkLoaded();if(curUser&&curPage==='users')rU();
   });
@@ -834,33 +842,49 @@ function closeSidebar(){g('sidebar').classList.remove('open');g('overlay').class
 // LOGIN / LOGOUT
 // ══════════════════════════════════════════════
 function doLogin(){
-  var login=g('li-user').value.trim(),pass=g('li-pass').value,u=null;
-  for(var i=0;i<users.length;i++){if(users[i].login===login&&users[i].pass===pass&&users[i].status==='Ativo'){u=users[i];break;}}
-  if(!u){
-    var errEl=g('li-err');
-    if(users.length===0){errEl.textContent='⏳ Banco ainda carregando... Aguarde e tente novamente.';}
-    else{errEl.textContent='❌ Usuário ou senha incorretos.';}
-    errEl.style.display='block';return;
-  }
-  curUser=u;g('li-err').style.display='none';
-  g('loginScreen').style.display='none';
-  g('loginScreen').style.visibility='hidden';
-  g('loginScreen').style.zIndex='-1';
-  g('appScreen').style.display='block';
-  g('appScreen').style.visibility='visible';
-  g('appScreen').style.zIndex='1';
-  g('sb-uname').textContent=u.name;
-  var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
-  var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
-  g('sb-urole').innerHTML='<span class="'+rc[u.role]+'">'+ri[u.role]+'</span>';
-  g('nav-users').style.display=isG()?'flex':'none';
-  g('nav-logs').style.display=isG()?'flex':'none';
-  g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
-  applyPermUI();rD();
-  addLog('user','Login realizado','🔐');
+  var login=g('li-user').value.trim().toLowerCase(),pass=g('li-pass').value;
+  var errEl=g('li-err'),btn=document.querySelector('.lbtn');
+  // Valida se login existe no mapa
+  var map=LOGIN_MAP[login];
+  if(!map){errEl.textContent='❌ Usuário ou senha incorretos.';errEl.style.display='block';return;}
+  if(map.status==='Inativo'){errEl.textContent='❌ Usuário inativo. Contate o administrador.';errEl.style.display='block';return;}
+  // Busca perfil no banco
+  var dbUser=users.find(function(u){return u.login===login;});
+  if(!dbUser){errEl.textContent='⏳ Banco ainda carregando... Aguarde e tente novamente.';errEl.style.display='block';return;}
+  // Autenticação real via Firebase Auth
+  errEl.style.display='none';
+  btn.disabled=true;btn.textContent='Entrando...';
+  auth.signInWithEmailAndPassword(map.email,pass)
+    .then(function(){
+      curUser=dbUser;
+      g('loginScreen').style.display='none';
+      g('loginScreen').style.visibility='hidden';
+      g('loginScreen').style.zIndex='-1';
+      g('appScreen').style.display='block';
+      g('appScreen').style.visibility='visible';
+      g('appScreen').style.zIndex='1';
+      g('sb-uname').textContent=dbUser.name;
+      var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
+      var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
+      g('sb-urole').innerHTML='<span class="'+(rc[dbUser.role]||'role-v')+'">'+(ri[dbUser.role]||dbUser.role)+'</span>';
+      g('nav-users').style.display=isG()?'flex':'none';
+      g('nav-logs').style.display=isG()?'flex':'none';
+      g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+      applyPermUI();rD();
+      addLog('user','Login realizado','🔐');
+      btn.disabled=false;btn.textContent='Entrar no Sistema';
+    })
+    .catch(function(err){
+      btn.disabled=false;btn.textContent='Entrar no Sistema';
+      var msg='❌ Usuário ou senha incorretos.';
+      if(err.code==='auth/too-many-requests')msg='⚠️ Muitas tentativas. Aguarde alguns minutos.';
+      if(err.code==='auth/network-request-failed')msg='⚠️ Sem conexão com a internet.';
+      errEl.textContent=msg;errEl.style.display='block';
+    });
 }
 function doLogout(){
   addLog('user','Logout realizado','🚪');
+  auth.signOut();
   curUser=null;
   g('appScreen').style.display='none';
   g('appScreen').style.visibility='hidden';
@@ -1367,9 +1391,9 @@ function rU(){
 function opU(){eUid=null;g('muser-title').textContent='Novo Usuário';g('u-login').value='';g('u-name').value='';g('u-pass').value='';g('u-role').value='Operador';g('u-status').value='Ativo';g('muser').classList.add('open');}
 function opUEdit(id){eUid=id;var u=users.find(function(x){return x.id===id;});if(!u)return;g('muser-title').textContent='Editar Usuário';g('u-login').value=u.login||'';g('u-name').value=u.name||'';g('u-pass').value=u.pass||'';g('u-role').value=u.role||'Operador';g('u-status').value=u.status||'Ativo';g('muser').classList.add('open');}
 function svU(){
-  var login=g('u-login').value.trim(),name=g('u-name').value.trim(),pass=g('u-pass').value;
-  if(!login||!name||!pass){alert('Preencha todos os campos');return;}
-  var id=eUid||uid();db.ref('usuarios/'+id).set({id:id,login:login,name:name,pass:pass,role:g('u-role').value,status:g('u-status').value});
+  var login=g('u-login').value.trim(),name=g('u-name').value.trim();
+  if(!login||!name){alert('Preencha todos os campos');return;}
+  var id=eUid||uid();db.ref('usuarios/'+id).set({id:id,login:login,name:name,role:g('u-role').value,status:g('u-status').value});
   addLog('user',(eUid?'Usuário editado: ':'Usuário criado: ')+name,'👥');cl('muser');
 }
 function dU(id){if(curUser&&id===curUser.id){alert('Não pode excluir o usuário logado.');return;}var u=users.find(function(x){return x.id===id;});if(confirm('Remover usuário?')){db.ref('usuarios/'+id).remove();if(u)addLog('user','Usuário removido: '+u.name,'🗑️');}}
