@@ -254,7 +254,7 @@ select:focus,input:focus{border-color:#10b981}
     <div class="lf"><label class="ll">Senha</label><input class="li" type="password" id="li-pass" placeholder="Digite sua senha" onkeydown="if(event.key==='Enter')doLogin()"></div>
     <button class="lbtn" onclick="doLogin()">Entrar no Sistema</button>
     <div class="lerr" id="li-err">Usuário ou senha incorretos.</div>
-    <div class="lhint"><p>Contas padrão:</p><span>👑 <b>gerente</b> / gerente123 → Acesso total</span><span>⚙️ <b>operador</b> / op123 → Lançamentos</span><span>👁️ <b>viewer</b> / view123 → Somente leitura</span></div>
+
   </div>
 </div>
 
@@ -767,6 +767,15 @@ function cleanRef(ref,key){
 }
 
 function setupListeners(){
+  // Aguarda autenticação antes de acessar o banco
+  auth.onAuthStateChanged(function(firebaseUser){
+    if(!firebaseUser) return; // não autenticado, não lê o banco
+    startDbListeners();
+  });
+  // Monitora conexão
+}
+
+function startDbListeners(){
   cleanRef(db.ref('empresas'),'n');
   cleanRef(db.ref('epis'),'n');
   cleanRef(db.ref('movimentos'),'io');
@@ -871,6 +880,7 @@ function doLogin(){
       g('nav-logs').style.display=isG()?'flex':'none';
       g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
       applyPermUI();rD();
+      startDbListeners();
       addLog('user','Login realizado','🔐');
       btn.disabled=false;btn.textContent='Entrar no Sistema';
     })
@@ -1464,6 +1474,14 @@ document.addEventListener('keydown',function(e){
     rComissao();
     e.preventDefault();
   }
+});
+// Só inicia listeners após confirmar estado de auth
+auth.onAuthStateChanged(function(user){
+  if(!user){
+    // Não autenticado — mostra login sem tentar ler o banco
+    showLogin();
+  }
+  // Se autenticado (ex: refresh de página), setupListeners cuida do resto
 });
 setupListeners();
 
