@@ -857,32 +857,61 @@ function doLogin(){
   var map=LOGIN_MAP[login];
   if(!map){errEl.textContent='❌ Usuário ou senha incorretos.';errEl.style.display='block';return;}
   if(map.status==='Inativo'){errEl.textContent='❌ Usuário inativo. Contate o administrador.';errEl.style.display='block';return;}
-  // Busca perfil no banco
-  var dbUser=users.find(function(u){return u.login===login;});
-  if(!dbUser){errEl.textContent='⏳ Banco ainda carregando... Aguarde e tente novamente.';errEl.style.display='block';return;}
-  // Autenticação real via Firebase Auth
+  // Autentica no Firebase PRIMEIRO (sem precisar do banco carregado)
   errEl.style.display='none';
   btn.disabled=true;btn.textContent='Entrando...';
   auth.signInWithEmailAndPassword(map.email,pass)
     .then(function(){
-      curUser=dbUser;
-      g('loginScreen').style.display='none';
-      g('loginScreen').style.visibility='hidden';
-      g('loginScreen').style.zIndex='-1';
-      g('appScreen').style.display='block';
-      g('appScreen').style.visibility='visible';
-      g('appScreen').style.zIndex='1';
-      g('sb-uname').textContent=dbUser.name;
-      var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
-      var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
-      g('sb-urole').innerHTML='<span class="'+(rc[dbUser.role]||'role-v')+'">'+(ri[dbUser.role]||dbUser.role)+'</span>';
-      g('nav-users').style.display=isG()?'flex':'none';
-      g('nav-logs').style.display=isG()?'flex':'none';
-      g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
-      applyPermUI();rD();
+      // Autenticado! Agora carrega dados do banco
       startDbListeners();
-      addLog('user','Login realizado','🔐');
-      btn.disabled=false;btn.textContent='Entrar no Sistema';
+      // Busca perfil do usuário no banco (aguarda carregar)
+      var tentativas=0;
+      function tentarEntrar(){
+        tentativas++;
+        var dbUser=users.find(function(u){return u.login===login;});
+        if(dbUser){
+          // Encontrou — entra no sistema
+          curUser=dbUser;
+          g('loginScreen').style.display='none';
+          g('loginScreen').style.visibility='hidden';
+          g('loginScreen').style.zIndex='-1';
+          g('appScreen').style.display='block';
+          g('appScreen').style.visibility='visible';
+          g('appScreen').style.zIndex='1';
+          g('sb-uname').textContent=dbUser.name;
+          var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
+          var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
+          g('sb-urole').innerHTML='<span class="'+(rc[dbUser.role]||'role-v')+'">'+(ri[dbUser.role]||dbUser.role)+'</span>';
+          g('nav-users').style.display=isG()?'flex':'none';
+          g('nav-logs').style.display=isG()?'flex':'none';
+          g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+          applyPermUI();rD();
+          addLog('user','Login realizado','🔐');
+          btn.disabled=false;btn.textContent='Entrar no Sistema';
+        } else if(tentativas<20){
+          // Banco ainda carregando, tenta novamente em 300ms
+          setTimeout(tentarEntrar,300);
+        } else {
+          // Fallback: usa dados do LOGIN_MAP diretamente
+          curUser={id:'temp',login:login,name:map.name,role:map.role,status:map.status};
+          g('loginScreen').style.display='none';
+          g('loginScreen').style.visibility='hidden';
+          g('loginScreen').style.zIndex='-1';
+          g('appScreen').style.display='block';
+          g('appScreen').style.visibility='visible';
+          g('appScreen').style.zIndex='1';
+          g('sb-uname').textContent=map.name;
+          var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
+          var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
+          g('sb-urole').innerHTML='<span class="'+(rc[map.role]||'role-v')+'">'+(ri[map.role]||map.role)+'</span>';
+          g('nav-users').style.display=isG()?'flex':'none';
+          g('nav-logs').style.display=isG()?'flex':'none';
+          g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+          applyPermUI();rD();
+          btn.disabled=false;btn.textContent='Entrar no Sistema';
+        }
+      }
+      setTimeout(tentarEntrar,400);
     })
     .catch(function(err){
       btn.disabled=false;btn.textContent='Entrar no Sistema';
