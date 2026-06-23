@@ -280,6 +280,7 @@ select:focus,input:focus{border-color:#10b981}
   <div class="nav-sec">Menu</div>
   <div class="ni active" onclick="nav('dashboard',this)">📊 Dashboard</div>
   <div class="ni" id="nav-prod" onclick="nav('products',this)">📦 Produtos / EPI <span class="nbadge" id="lbadge">0</span></div>
+  <div class="ni" id="nav-ruptura" onclick="nav('ruptura',this)">📉 Ruptura / CMM <span class="nbadge" id="rupbadge">0</span></div>
   <div class="ni" id="nav-companies-ref" onclick="nav('companies',this)">🏢 Empresas</div>
   <div class="ni" id="nav-emp-dash" onclick="nav('emp-dash',this)" style="display:none">📊 Dashboard Cliente</div>
   <div class="ni" onclick="nav('movements',this)">↔️ Movimentações</div>
@@ -314,6 +315,7 @@ select:focus,input:focus{border-color:#10b981}
   <div class="kgrid" id="dash-kpis"></div>
   <div class="kgrid" id="dash-extra-kpis" style="margin-top:-2px"></div>
   <div id="dash-crit-alert" style="margin-top:12px"></div>
+  <div id="dash-rup-alert" style="margin-top:12px"></div>
   <div class="g2">
     <div class="card" style="margin-bottom:0"><div class="ch"><h3>Movimentações por Mês</h3><span style="font-size:10px;color:#64748b" id="dash-chart-year"></span></div><div style="padding:14px" id="dchart"></div></div>
     <div class="card" style="margin-bottom:0"><div class="ch"><h3>Produtos por Categoria</h3></div><div style="padding:14px" id="dcat"></div></div>
@@ -338,6 +340,41 @@ select:focus,input:focus{border-color:#10b981}
     <button class="btn bp2 bsm" id="btn-new-prod" onclick="opP()">➕ Novo</button>
   </div>
   <div class="card"><div class="tscroll"><table><thead><tr><th>#</th><th>Produto</th><th>CA</th><th>Cat.</th><th>Estoque</th><th>Situação</th><th>P.Base</th><th>P.Dist.</th><th>P.Final</th><th></th></tr></thead><tbody id="ptbl"></tbody></table></div></div>
+</div>
+
+<!-- RUPTURA / CMM -->
+<div class="pg" id="pg-ruptura">
+  <div class="card" style="margin-bottom:14px;background:linear-gradient(145deg,#f0f9ff,#e0f2fe);border-color:#bae6fd">
+    <div style="padding:12px 16px;display:flex;flex-wrap:wrap;gap:16px;align-items:center">
+      <div style="flex:1;min-width:220px">
+        <div style="font-size:13px;font-weight:700;color:#0c4a6e">📉 Análise de Ruptura por CMM</div>
+        <div style="font-size:11px;color:#475569;margin-top:3px">CMM = Consumo Médio Mensal (saídas). A cobertura e a previsão de ruptura são recalculadas conforme os parâmetros ao lado.</div>
+      </div>
+      <div>
+        <label class="ll" style="color:#475569">Janela de cálculo</label>
+        <select id="rup-janela" onchange="setRupJanela(this.value)" style="font-size:12px;padding:7px 10px;border:1px solid #bae6fd;border-radius:8px;background:#fff">
+          <option value="3">Últimos 3 meses</option>
+          <option value="6">Últimos 6 meses</option>
+          <option value="12">Últimos 12 meses</option>
+        </select>
+      </div>
+      <div>
+        <label class="ll" style="color:#475569">Tempo de reposição</label>
+        <select id="rup-lead" onchange="setRupLead(this.value)" style="font-size:12px;padding:7px 10px;border:1px solid #bae6fd;border-radius:8px;background:#fff">
+          <option value="15">15 dias</option>
+          <option value="30" selected>30 dias</option>
+          <option value="45">45 dias</option>
+          <option value="60">60 dias</option>
+          <option value="90">90 dias</option>
+        </select>
+      </div>
+      <button class="btn bexp bsm" onclick="exportRup()">⬇ CSV</button>
+    </div>
+  </div>
+  <div class="g4" id="rup-kpis"></div>
+  <div class="card"><div class="ch"><h3>Produtos ordenados por risco de ruptura</h3><span style="font-size:10px;color:#64748b" id="rup-legenda"></span></div>
+    <div class="tscroll"><table><thead><tr><th>Produto</th><th>Estoque</th><th>CMM (un/mês)</th><th>Cobertura</th><th>Dias rest.</th><th>Previsão ruptura</th><th>Sugestão compra</th><th>Status</th><th></th></tr></thead><tbody id="rup-tbl"></tbody></table></div>
+  </div>
 </div>
 
 <!-- EMPRESAS -->
@@ -647,6 +684,7 @@ select:focus,input:focus{border-color:#10b981}
       <select id="ficha-ano" onchange="rFicha()" style="font-size:12px"><option value="">Todos os anos</option><option value="2025">2025</option><option value="2026">2026</option></select>
       <select id="ficha-mes" onchange="rFicha()" style="font-size:12px"><option value="">Todos os meses</option><option value="01">Jan</option><option value="02">Fev</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">Mai</option><option value="06">Jun</option><option value="07">Jul</option><option value="08">Ago</option><option value="09">Set</option><option value="10">Out</option><option value="11">Nov</option><option value="12">Dez</option></select>
     </div>
+    <div id="ficha-cmm" style="margin-bottom:12px"></div>
     <div class="g3" id="ficha-kpis"></div>
     <div class="tscroll"><table><thead><tr><th>Data</th><th>Tipo</th><th>Operação</th><th>Empresa</th><th>Qty</th><th>Vl.Unit.</th><th>Vl.Total</th><th>NF</th></tr></thead><tbody id="ficha-table"></tbody></table></div>
   </div>
@@ -744,6 +782,58 @@ function fmtDt(iso){return iso?iso.split('-').reverse().join('/'):'—';}
 function nowISO(){return new Date().toISOString();}
 function updMonths(){g('mmes').value='';}
 
+// ══════════════════════════════════════════════
+// CMM / RUPTURA  (funções puras no escopo global)
+// ══════════════════════════════════════════════
+// Parâmetros ajustáveis na tela (não travam o cálculo):
+var rupJanela=3;   // janela de meses COMPLETOS usada para a média
+var rupLead=30;    // tempo de reposição (dias) — limiar de risco
+
+function ymKey(d){return d.getFullYear()+'-'+(d.getMonth()+1<10?'0':'')+(d.getMonth()+1);}
+
+// Retorna todo o diagnóstico de ruptura de um produto.
+// DECISÕES DE MÉTODO:
+//  1. Só conta SAÍDAS como consumo (entradas e devoluções não entram).
+//  2. Usa meses COMPLETOS anteriores (exclui o mês corrente, que está parcial
+//     e puxaria a média artificialmente para baixo).
+//  3. O divisor é o nº de meses da janela em que o produto JÁ EXISTIA
+//     (a partir da 1ª movimentação). Assim um produto novo não é penalizado
+//     por meses em que ainda não estava no catálogo. Mês existente com zero
+//     saída conta como zero real (consumo baixo é informação verdadeira).
+function cmmInfo(p,janela,leadDias){
+  janela=janela||rupJanela;leadDias=leadDias||rupLead;
+  var hoje=new Date();
+  var keys=[];
+  for(var i=1;i<=janela;i++){var d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);keys.push(ymKey(d));}
+  var keySet={};keys.forEach(function(k){keySet[k]=true;});
+  var soma=0,primeiraYM=null;
+  movs.forEach(function(m){
+    if(m.pid!==p.id||!m.dt)return;
+    var ym=m.dt.slice(0,7);
+    if(primeiraYM===null||ym<primeiraYM)primeiraYM=ym;
+    if(m.io==='Saída'&&keySet[ym])soma+=Math.abs(m.q||0);
+  });
+  var mesesEf=0;keys.forEach(function(k){if(primeiraYM===null||k>=primeiraYM)mesesEf++;});
+  if(mesesEf<1)mesesEf=1;
+  var cmm=soma/mesesEf;
+  var at=p.at||0;
+  var cobMeses=cmm>0?at/cmm:Infinity;
+  var diasRest=cmm>0?Math.round(cobMeses*30):Infinity;
+  var dataRuptura=null;
+  if(cmm>0&&at>0){var dr=new Date();dr.setDate(dr.getDate()+diasRest);dataRuptura=dr.toISOString().slice(0,10);}
+  var alvoMeses=leadDias/30+1;                                  // cobrir reposição + 1 mês de segurança
+  var sugestao=cmm>0?Math.max(0,Math.ceil(cmm*alvoMeses)-at):0;
+  var ptoRessup=cmm>0?Math.ceil(cmm/30*leadDias):0;            // demanda esperada durante a reposição
+  var status,cor,badge;
+  if(at<=0){status='Ruptura';cor='#ef4444';badge='br';}
+  else if(cmm<=0){status='Sem consumo';cor='#94a3b8';badge='bgr';}
+  else if(diasRest<=leadDias){status='Crítico';cor='#ef4444';badge='br';}
+  else if(diasRest<=leadDias*2){status='Atenção';cor='#f59e0b';badge='bw';}
+  else{status='Saudável';cor='#10b981';badge='bg';}
+  return{cmm:cmm,cobMeses:cobMeses,diasRest:diasRest,dataRuptura:dataRuptura,sugestao:sugestao,ptoRessup:ptoRessup,mesesEf:mesesEf,soma:soma,status:status,cor:cor,badge:badge};
+}
+var RUP_ORDEM={'Ruptura':0,'Crítico':1,'Atenção':2,'Sem consumo':3,'Saudável':4};
+
 // LOG
 function addLog(tipo,msg,icon){
   if(!curUser)return;
@@ -827,6 +917,7 @@ function refreshPage(){
   else if(curPage==='movements')rM();
   else if(curPage==='prices')rPR();
   else if(curPage==='reports')rR();
+  else if(curPage==='ruptura')rRup();
   updateBadge();
   if(curFichaPid)rFicha();
 }
@@ -839,6 +930,8 @@ function updateBadge(){
   if(lc){lc.style.display=low.length>0?'':'none';lc.textContent='⚠️ '+low.length+' baixo';}
   if(cc){cc.style.display=crit.length>0?'':'none';cc.textContent='🔴 '+crit.length+' crítico';}
   if(g('sbstats'))g('sbstats').textContent=prods.length+' produtos · '+emps.length+' empresas · '+movs.length+' movs';
+  var rb=g('rupbadge');
+  if(rb){var risco=prods.filter(function(p){var i=cmmInfo(p);return i.status==='Ruptura'||i.status==='Crítico';}).length;rb.style.display=risco>0?'':'none';rb.textContent=risco;}
 }
 
 // ══════════════════════════════════════════════
@@ -950,10 +1043,10 @@ function nav(id,el){
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
   g('pg-'+id).classList.add('active');if(el)el.classList.add('active');curPage=id;
-  var t={dashboard:'Dashboard',products:'Produtos / EPI',companies:'Empresas',movements:'Movimentações',prices:'Tabela de Preços',reports:'Relatórios',users:'Usuários',logs:'Log de Atividades',hist:'Histórico do Gráfico',comissao:'💸 Minha Comissão','emp-dash':'Dashboard Cliente'};
+  var t={dashboard:'Dashboard',products:'Produtos / EPI',ruptura:'Ruptura / CMM',companies:'Empresas',movements:'Movimentações',prices:'Tabela de Preços',reports:'Relatórios',users:'Usuários',logs:'Log de Atividades',hist:'Histórico do Gráfico',comissao:'💸 Minha Comissão','emp-dash':'Dashboard Cliente'};
   g('ptitle').textContent=t[id]||id;
   closeSidebar();applyPermUI();
-  if(id==='dashboard')rD();if(id==='products')rP();if(id==='companies')rE();
+  if(id==='dashboard')rD();if(id==='products')rP();if(id==='ruptura')rRup();if(id==='companies')rE();
   if(id==='movements')rM();if(id==='prices')rPR();if(id==='reports')rR();
   if(id==='users')rU();if(id==='logs')rLogs();if(id==='hist')rHist();if(id==='comissao')rComissao();if(id==='emp-dash'&&curEmpDash)rEmpDash(curEmpDash);
 }
@@ -1022,6 +1115,23 @@ function rD(){
     +'<div class="kpi g" style="border-top:3px solid #10b981"><div class="kl">Margem Potencial</div><div class="kv" style="font-size:18px;color:#059669">'+brl(prods.reduce(function(s,p){return s+(p.at||0)*((p.f||0)-(p.b||0));},0))+'</div><div class="ks">lucro se vender tudo</div><div class="ki">📈</div></div>';
   if(g('dash-extra-kpis'))g('dash-extra-kpis').innerHTML=extraKpis;
   g('dash-crit-alert').innerHTML=critHtml;
+
+  // Painel de risco de ruptura por CMM (rompe dentro do prazo de reposição)
+  if(g('dash-rup-alert')){
+    var risco=prods.map(function(p){return{p:p,info:cmmInfo(p)};})
+      .filter(function(x){return x.info.status==='Crítico'||x.info.status==='Ruptura';})
+      .sort(function(a,b){var da=isFinite(a.info.diasRest)?a.info.diasRest:9e9,db=isFinite(b.info.diasRest)?b.info.diasRest:9e9;return da-db;});
+    var rupHtml='';
+    if(risco.length>0){
+      rupHtml='<div class="crit-alert" style="border-color:#fdba74;background:#fff7ed"><h4 style="color:#9a3412">📉 '+risco.length+' produto(s) com risco de RUPTURA (romper em até '+rupLead+' dias pelo CMM)</h4>';
+      risco.slice(0,6).forEach(function(x){var p=x.p,i=x.info;
+        var dias=isFinite(i.diasRest)?i.diasRest+' dias':'zerado';
+        rupHtml+='<div class="crit-item"><span style="font-weight:500">'+esc(p.n)+'</span><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:#9a3412;font-weight:600">CMM '+(i.cmm>0?i.cmm.toFixed(1):'0')+'/mês · '+dias+(i.sugestao>0?' · comprar ~'+i.sugestao+' un':'')+'</span><button class="btn bd2 bsm" onclick="opFicha(\''+p.id+'\')">Ver Ficha</button></div></div>';});
+      if(risco.length>6)rupHtml+='<div style="padding:8px 12px;font-size:11px;color:#9a3412"><a href="#" onclick="nav(\'ruptura\',document.getElementById(\'nav-ruptura\'));return false;" style="color:#9a3412;font-weight:600">+ '+(risco.length-6)+' outro(s) — ver análise completa →</a></div>';
+      rupHtml+='</div>';
+    }
+    g('dash-rup-alert').innerHTML=rupHtml;
+  }
 
   // Gráfico: real + histórico
   var anoAtual=new Date().getFullYear().toString();
@@ -1093,6 +1203,66 @@ function rP(){
   });
   g('ptbl').innerHTML=rows||'<tr class="er"><td colspan="10">Nenhum produto encontrado</td></tr>';
 }
+
+// ══════════════════════════════════════════════
+// RUPTURA / CMM
+// ══════════════════════════════════════════════
+function setRupJanela(v){rupJanela=+v;rRup();updateBadge();}
+function setRupLead(v){rupLead=+v;rRup();updateBadge();}
+
+function rRup(){
+  if(!g('rup-tbl'))return;
+  var lista=prods.map(function(p){return{p:p,info:cmmInfo(p,rupJanela,rupLead)};});
+  lista.sort(function(a,b){
+    var oa=RUP_ORDEM[a.info.status],ob=RUP_ORDEM[b.info.status];
+    if(oa!==ob)return oa-ob;
+    var da=isFinite(a.info.diasRest)?a.info.diasRest:9e9;
+    var db=isFinite(b.info.diasRest)?b.info.diasRest:9e9;
+    return da-db;
+  });
+  var nRup=lista.filter(function(x){return x.info.status==='Ruptura';}).length;
+  var nCrit=lista.filter(function(x){return x.info.status==='Crítico';}).length;
+  var nAt=lista.filter(function(x){return x.info.status==='Atenção';}).length;
+  var nSem=lista.filter(function(x){return x.info.status==='Sem consumo';}).length;
+  g('rup-kpis').innerHTML=
+    '<div class="kpi '+(nRup>0?'r':'g')+'"><div class="kl">Em Ruptura</div><div class="kv" style="color:'+(nRup>0?'#991b1b':'#065f46')+'">'+nRup+'</div><div class="ks">estoque zerado</div><div class="ki">⛔</div></div>'
+    +'<div class="kpi '+(nCrit>0?'r':'g')+(nCrit>0?' crit-kpi':'')+'"><div class="kl">Crítico ('+rupLead+'d)</div><div class="kv" style="color:'+(nCrit>0?'#991b1b':'#065f46')+'">'+nCrit+'</div><div class="ks">rompe dentro do prazo de reposição</div><div class="ki">🚨</div></div>'
+    +'<div class="kpi '+(nAt>0?'w':'g')+'"><div class="kl">Atenção</div><div class="kv" style="color:'+(nAt>0?'#92400e':'#065f46')+'">'+nAt+'</div><div class="ks">rompe em até '+(rupLead*2)+' dias</div><div class="ki">⚠️</div></div>'
+    +'<div class="kpi b"><div class="kl">Sem Consumo</div><div class="kv" style="color:#1e40af">'+nSem+'</div><div class="ks">parado na janela — possível obsoleto</div><div class="ki">💤</div></div>';
+  g('rup-legenda').textContent='Janela: '+rupJanela+' meses · Reposição: '+rupLead+' dias';
+  var rows='';
+  lista.forEach(function(x){
+    var p=x.p,info=x.info;
+    var cob=info.cmm>0?info.cobMeses.toFixed(1)+' m':'∞';
+    var dias=isFinite(info.diasRest)?info.diasRest+' d':'—';
+    var prev=info.dataRuptura?fmtDt(info.dataRuptura):'—';
+    var cmmTxt=info.cmm>0?info.cmm.toFixed(1):'0';
+    var sug=info.sugestao>0?'<strong style="color:#b45309">'+info.sugestao+' un</strong>':'—';
+    rows+='<tr'+(info.status==='Crítico'||info.status==='Ruptura'?' style="background:#fff5f5"':'')+'>'
+      +'<td style="font-weight:500;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.n||'')+'</td>'
+      +'<td style="font-weight:700;color:'+(((p.at||0)<=0)?'#ef4444':'#1a2332')+'">'+(p.at||0)+'</td>'
+      +'<td>'+cmmTxt+'</td>'
+      +'<td>'+cob+'</td>'
+      +'<td style="font-weight:600;color:'+info.cor+'">'+dias+'</td>'
+      +'<td style="font-size:11px;color:#475569">'+prev+'</td>'
+      +'<td>'+sug+'</td>'
+      +'<td><span class="badge '+info.badge+'">'+info.status+'</span></td>'
+      +'<td><button class="ib blue" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">📋</button></td>'
+      +'</tr>';
+  });
+  g('rup-tbl').innerHTML=rows||'<tr class="er"><td colspan="9">Nenhum produto cadastrado</td></tr>';
+}
+
+function exportRup(){
+  var now=new Date().toISOString().slice(0,10);
+  var lista=prods.map(function(p){return{p:p,info:cmmInfo(p,rupJanela,rupLead)};});
+  lista.sort(function(a,b){var oa=RUP_ORDEM[a.info.status],ob=RUP_ORDEM[b.info.status];return oa!==ob?oa-ob:0;});
+  var rows=[['Produto','CA','Categoria','Estoque','CMM (un/mes)','Meses considerados','Cobertura (meses)','Dias restantes','Previsao ruptura','Ponto ressup.','Sugestao compra','Status','Janela(meses)','Reposicao(dias)']];
+  lista.forEach(function(x){var p=x.p,i=x.info;
+    rows.push([p.n,p.ca,p.cat,(p.at||0),i.cmm.toFixed(2),i.mesesEf,isFinite(i.cobMeses)?i.cobMeses.toFixed(2):'',isFinite(i.diasRest)?i.diasRest:'',i.dataRuptura||'',i.ptoRessup,i.sugestao,i.status,rupJanela,rupLead]);
+  });
+  dlCSV('Ruptura_CMM_'+now+'.csv',rows);
+}
 function opP(id){
   if(!isOp())return;ePid=id||null;g('mpt').textContent=id?'Editar Produto':'Novo Produto';
   var cs=g('pcat');cs.innerHTML=CATS.map(function(c){return'<option value="'+c+'">'+c+'</option>';}).join('');
@@ -1143,6 +1313,21 @@ function rFicha(){
   var smax=Math.max.apply(null,sparkData.concat([1]));
   var sparkHtml='<div style="margin-bottom:12px"><div style="font-size:10px;color:#64748b;margin-bottom:5px">Consumo mensal (últ. 6 meses)</div><div class="spark-wrap">'
     +sparkData.map(function(v,i){var h=Math.round((v/smax)*36)||2;return'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div class="spark-b" style="height:'+h+'px" title="'+meses6[i].l+': '+v+' un."></div><div style="font-size:8px;color:#94a3b8">'+meses6[i].l+'</div></div>';}).join('')
+    +'</div></div>';
+  // Painel CMM / Ruptura na ficha
+  var ci=cmmInfo(p,rupJanela,rupLead);
+  var cobTxt=ci.cmm>0?ci.cobMeses.toFixed(1)+' meses ('+ci.diasRest+' dias)':'sem consumo na janela';
+  var prevTxt=ci.dataRuptura?fmtDt(ci.dataRuptura):'—';
+  var sugTxt=ci.sugestao>0?'Comprar ~'+ci.sugestao+' un':'estoque suficiente';
+  g('ficha-cmm').innerHTML='<div class="card" style="margin-bottom:0;border-left:4px solid '+ci.cor+'"><div style="padding:12px 14px">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:700">📉 Diagnóstico de Ruptura (CMM)</div><span class="badge '+ci.badge+'">'+ci.status+'</span></div>'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">'
+    +'<div><div class="kl">CMM</div><div style="font-size:16px;font-weight:700">'+(ci.cmm>0?ci.cmm.toFixed(1):'0')+' <span style="font-size:10px;color:#94a3b8">un/mês</span></div></div>'
+    +'<div><div class="kl">Cobertura</div><div style="font-size:13px;font-weight:600;color:'+ci.cor+'">'+cobTxt+'</div></div>'
+    +'<div><div class="kl">Previsão ruptura</div><div style="font-size:13px;font-weight:600">'+prevTxt+'</div></div>'
+    +'<div><div class="kl">Sugestão</div><div style="font-size:13px;font-weight:600;color:#b45309">'+sugTxt+'</div></div>'
+    +'</div>'
+    +'<div style="font-size:10px;color:#94a3b8;margin-top:8px">Base: '+ci.soma+' un saídas em '+ci.mesesEf+' mês(es) · janela '+rupJanela+'m · reposição '+rupLead+'d</div>'
     +'</div></div>';
   g('ficha-kpis').innerHTML=sparkHtml+'<div class="card" style="margin-bottom:0"><div style="padding:12px"><div class="kl">Entradas</div><div class="kv" style="font-size:20px;color:#10b981">+'+totEnt+'</div></div></div>'+'<div class="card" style="margin-bottom:0"><div style="padding:12px"><div class="kl">Saídas</div><div class="kv" style="font-size:20px;color:#f59e0b">-'+totSai+'</div></div></div>'+'<div class="card" style="margin-bottom:0"><div style="padding:12px"><div class="kl">Valor Total Vendido</div><div class="kv" style="font-size:16px;color:#059669">'+brl(totVenda)+'</div></div></div>';
   var rows='';
