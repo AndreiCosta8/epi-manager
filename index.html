@@ -362,8 +362,8 @@ select:focus,input:focus{border-color:#10b981}
         <label class="ll" style="color:#475569">Tempo de reposição</label>
         <select id="rup-lead" onchange="setRupLead(this.value)" style="font-size:12px;padding:7px 10px;border:1px solid #bae6fd;border-radius:8px;background:#fff">
           <option value="15">15 dias</option>
-          <option value="30" selected>30 dias</option>
-          <option value="45">45 dias</option>
+          <option value="30">30 dias</option>
+          <option value="45" selected>45 dias</option>
           <option value="60">60 dias</option>
           <option value="90">90 dias</option>
         </select>
@@ -373,7 +373,7 @@ select:focus,input:focus{border-color:#10b981}
   </div>
   <div class="g4" id="rup-kpis"></div>
   <div class="card"><div class="ch"><h3>Produtos ordenados por risco de ruptura</h3><span style="font-size:10px;color:#64748b" id="rup-legenda"></span></div>
-    <div class="tscroll"><table><thead><tr><th>Produto</th><th>Estoque</th><th>CMM (un/mês)</th><th>Cobertura</th><th>Dias rest.</th><th>Previsão ruptura</th><th>Sugestão compra</th><th>Status</th><th></th></tr></thead><tbody id="rup-tbl"></tbody></table></div>
+    <div class="tscroll"><table><thead><tr><th>Produto</th><th>ABC</th><th>Estoque</th><th>Em Trânsito</th><th>CMM (un/mês)</th><th>Cobertura</th><th>Dias rest.</th><th>Previsão ruptura</th><th>Sugestão compra</th><th>Status</th><th></th></tr></thead><tbody id="rup-tbl"></tbody></table></div>
   </div>
 </div>
 
@@ -402,7 +402,7 @@ select:focus,input:focus{border-color:#10b981}
     <button class="btn bd2 bsm" id="btn-delall" onclick="delAllMovs()" style="display:none">🗑️ Excluir Tudo</button>
     <button class="btn bp2 bsm" id="btn-new-mov" onclick="opM()">➕ Nova</button>
   </div>
-  <div class="g3" id="mstats"></div>
+  <div class="g4" id="mstats"></div>
   <div class="card"><div class="tscroll"><table><thead><tr><th>Data</th><th>Tipo</th><th>Operação</th><th>Produto</th><th>Empresa</th><th>Qty</th><th>Vl.Unit.</th><th>Vl.Total</th><th>Nota Fiscal</th><th id="th-acoes" style="display:none">Ações</th></tr></thead><tbody id="mtbl"></tbody></table></div></div>
 </div>
 
@@ -446,6 +446,7 @@ select:focus,input:focus{border-color:#10b981}
     <div class="tab" onclick="stab('rl',this)">🏢 Clientes</div>
     <div class="tab" onclick="stab('rf',this)">💰 Financeiro</div>
     <div class="tab" onclick="stab('rp',this)">📅 Por Período</div>
+    <div class="tab" onclick="stab('rabc',this)">🎯 Curva ABC</div>
   </div>
   <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
     <button class="btn bexp bsm" onclick="exportReport()">⬇ Exportar CSV</button>
@@ -458,8 +459,8 @@ select:focus,input:focus{border-color:#10b981}
     <div class="card"><div class="tscroll"><table><thead><tr><th>Empresa</th><th>Tipo</th><th>Movs.</th><th>Total Unid.</th><th>Valor Total</th><th>Ações</th></tr></thead><tbody id="rltbl"></tbody></table></div></div>
   </div>
   <div class="tp" id="rf">
-    <div class="g4" id="rfk"></div>
-    <div class="card"><div class="tscroll"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>P.Base</th><th>P.Final</th><th>Val.Custo</th><th>Val.Venda</th><th>Margem</th></tr></thead><tbody id="rftbl"></tbody></table></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px" id="rfk"></div>
+    <div class="card"><div class="tscroll"><table><thead><tr><th>Produto</th><th>Qtd.</th><th>P.Base</th><th>P.Final</th><th>Val.Custo</th><th>Val.Venda</th><th>Margem</th><th>💰 Margem Real (vendido)</th></tr></thead><tbody id="rftbl"></tbody></table></div></div>
   </div>
   <div class="tp" id="rp">
     <div class="card"><div style="padding:16px">
@@ -471,6 +472,15 @@ select:focus,input:focus{border-color:#10b981}
       <button class="btn bp2 bsm" onclick="rPeriodo()">🔍 Filtrar</button>
     </div></div>
     <div id="rp-result"></div>
+  </div>
+  <div class="tp" id="rabc">
+    <div class="al al-b" style="margin-bottom:12px">
+      🎯 <b>Curva ABC</b> classifica os produtos pelo valor de saída (vendas) acumulado. Classe <b>A</b> = poucos itens que concentram ~80% do valor movimentado (prioridade máxima de gestão e nunca deixar faltar). Classe <b>B</b> = impacto intermediário (~80–95%). Classe <b>C</b> = muitos itens de baixo impacto individual (~95–100%, pode tolerar menos rigor de controle).
+    </div>
+    <div class="g4" id="abc-kpis"></div>
+    <div class="card"><div class="ch"><h3>Produtos por valor de saída — últimos 12 meses</h3><span style="font-size:10px;color:#64748b" id="abc-legenda"></span></div>
+      <div class="tscroll"><table><thead><tr><th>#</th><th>Produto</th><th>Categoria</th><th>Qtd. Vendida</th><th>Valor Vendido</th><th>% do Total</th><th>% Acumulado</th><th>Classe</th></tr></thead><tbody id="abc-tbl"></tbody></table></div>
+    </div>
   </div>
 </div>
 
@@ -588,6 +598,13 @@ select:focus,input:focus{border-color:#10b981}
         <div class="fgp"><label class="fl">Estoque Ideal</label><input class="fi" type="number" id="pid2" value="30"></div>
         <div class="fgp"><label class="fl">Estoque Atual</label><input class="fi" type="number" id="pat" value="0"></div>
       </div>
+      <div class="fg">
+        <div class="fgp">
+          <label class="fl">Lead Time da Fábrica (dias)</label>
+          <input class="fi" type="number" id="plead" value="" placeholder="Deixe vazio para usar o padrão da tela de Ruptura">
+          <span style="font-size:10px;color:#94a3b8;display:block;margin-top:3px">Tempo real que a fábrica leva para entregar este item. Itens de uso diário (ex: luvas) geralmente pedem uma margem maior que itens esporádicos.</span>
+        </div>
+      </div>
     </div>
     <div class="ss"><div class="ssl">💰 Tabela de Preços (R$)</div>
       <div class="fg">
@@ -620,7 +637,7 @@ select:focus,input:focus{border-color:#10b981}
       <div class="ssl">📋 Dados da Nota Fiscal</div>
       <div class="fg">
         <div class="fgp"><label class="fl">Tipo de Operação</label>
-          <select class="fi" id="mtp">
+          <select class="fi" id="mtp" onchange="togglePendenteUI()">
             <option value="RET-">(-) Retirada / Venda</option>
             <option value="AQU+">(+) Aquisição / Compra</option>
             <option value="AJU+">(+) Ajuste de Estoque</option>
@@ -640,6 +657,12 @@ select:focus,input:focus{border-color:#10b981}
         <div class="fgp"><label class="fl">Emitente / Fornecedor</label><input class="fi" id="mnfe" placeholder="Nome do emitente"></div>
       </div>
       <div class="fgp" style="margin-top:10px"><label class="fl">Observações</label><input class="fi" id="mob" placeholder="Opcional..."></div>
+      <div class="fgp" id="wrap-pendente" style="margin-top:10px;display:none">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#475569;cursor:pointer;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px">
+          <input type="checkbox" id="mpendente" style="width:16px;height:16px">
+          <span>🚚 Pedido feito à fábrica, mercadoria <strong>ainda não chegou</strong> na loja (não soma ao estoque agora — aparece como "Em trânsito" até você confirmar o recebimento)</span>
+        </label>
+      </div>
     </div>
     <div class="ss">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -673,6 +696,24 @@ select:focus,input:focus{border-color:#10b981}
     <div class="fgp"><label class="fl">Status</label><select class="fi" id="u-status"><option>Ativo</option><option>Inativo</option></select></div>
   </div>
   <div class="mf"><button class="btn bs2" onclick="cl('muser')">Cancelar</button><button class="btn bp2" onclick="svU()">Salvar</button></div>
+</div></div>
+
+<!-- Modal Edição de Preços -->
+<div class="mbg" id="m-price"><div class="modal">
+  <div class="mh"><h3 id="price-title">Editar Preços</h3><button class="ib" onclick="cl('m-price')">✕</button></div>
+  <div class="mb">
+    <div class="fgp" style="margin-bottom:14px"><label class="fl">Produto</label><input class="fi" id="price-prod-name" disabled style="background:#f1f5f9;font-weight:600"></div>
+    <div class="fg">
+      <div class="fgp"><label class="fl">Preço Base (Custo)</label><input class="fi" type="number" step="0.01" id="pr-b" value="0" oninput="atualizarPreviewMargem()"></div>
+      <div class="fgp"><label class="fl">🔵 Preço Diretoria</label><input class="fi" type="number" step="0.01" id="pr-dp" value="0"></div>
+    </div>
+    <div class="fg">
+      <div class="fgp"><label class="fl">🟡 Preço Distribuidora</label><input class="fi" type="number" step="0.01" id="pr-di" value="0"></div>
+      <div class="fgp"><label class="fl">🟢 Preço Cliente Final</label><input class="fi" type="number" step="0.01" id="pr-f" value="0" oninput="atualizarPreviewMargem()"></div>
+    </div>
+    <div id="price-margem-preview" style="font-size:11px;color:#64748b;margin-top:4px"></div>
+  </div>
+  <div class="mf"><button class="btn bs2" onclick="cl('m-price')">Cancelar</button><button class="btn bp2" onclick="svPR()">💾 Salvar Preços</button></div>
 </div></div>
 
 <!-- Modal Ficha do Produto -->
@@ -787,7 +828,7 @@ function updMonths(){g('mmes').value='';}
 // ══════════════════════════════════════════════
 // Parâmetros ajustáveis na tela (não travam o cálculo):
 var rupJanela=3;   // janela de meses COMPLETOS usada para a média
-var rupLead=30;    // tempo de reposição (dias) — limiar de risco
+var rupLead=45;    // tempo de reposição (dias) — limiar de risco. Padrão da loja: ~45 dias (fábrica)
 
 function ymKey(d){return d.getFullYear()+'-'+(d.getMonth()+1<10?'0':'')+(d.getMonth()+1);}
 
@@ -800,29 +841,63 @@ function ymKey(d){return d.getFullYear()+'-'+(d.getMonth()+1<10?'0':'')+(d.getMo
 //     (a partir da 1ª movimentação). Assim um produto novo não é penalizado
 //     por meses em que ainda não estava no catálogo. Mês existente com zero
 //     saída conta como zero real (consumo baixo é informação verdadeira).
-function cmmInfo(p,janela,leadDias){
-  janela=janela||rupJanela;leadDias=leadDias||rupLead;
+// Lead time efetivo do produto: usa o cadastrado no produto (p.lead) se houver,
+// senão cai para o parâmetro global da tela (leadDias/rupLead).
+function leadEfetivo(p,leadDiasGlobal){
+  return(p&&p.lead>0)?p.lead:(leadDiasGlobal||rupLead);
+}
+
+// Estoque "em trânsito": soma de pedidos de compra já feitos à fábrica mas
+// ainda não recebidos (movimentações de aquisição marcadas como pendentes).
+function emTransito(pid){
+  return movs.filter(function(m){return m.pid===pid&&m.cod==='AQU+'&&m.pendente;})
+    .reduce(function(s,m){return s+Math.abs(m.q||0);},0);
+}
+
+function cmmInfo(p,janela,leadDiasParam){
+  janela=janela||rupJanela;
+  var leadDias=leadEfetivo(p,leadDiasParam);
   var hoje=new Date();
   var keys=[];
   for(var i=1;i<=janela;i++){var d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);keys.push(ymKey(d));}
   var keySet={};keys.forEach(function(k){keySet[k]=true;});
-  var soma=0,primeiraYM=null;
+  var porMes={};keys.forEach(function(k){porMes[k]=0;});
+  var primeiraYM=null;
   movs.forEach(function(m){
     if(m.pid!==p.id||!m.dt)return;
     var ym=m.dt.slice(0,7);
     if(primeiraYM===null||ym<primeiraYM)primeiraYM=ym;
-    if(m.io==='Saída'&&keySet[ym])soma+=Math.abs(m.q||0);
+    if(m.io==='Saída'&&keySet[ym])porMes[ym]+=Math.abs(m.q||0);
   });
-  var mesesEf=0;keys.forEach(function(k){if(primeiraYM===null||k>=primeiraYM)mesesEf++;});
-  if(mesesEf<1)mesesEf=1;
+  var mesesValidos=keys.filter(function(k){return primeiraYM===null||k>=primeiraYM;});
+  var mesesEf=mesesValidos.length;if(mesesEf<1)mesesEf=1;
+  var valoresMes=mesesValidos.map(function(k){return porMes[k]||0;});
+  var soma=valoresMes.reduce(function(s,v){return s+v;},0);
   var cmm=soma/mesesEf;
+  // Detecção de outlier: mês com consumo >2.5x a média dos demais meses da janela,
+  // considerado apenas quando há ao menos 3 meses válidos (senão não há "demais" suficiente).
+  var outlier=null;
+  if(mesesValidos.length>=3){
+    for(var oi=0;oi<mesesValidos.length;oi++){
+      var valorMes=valoresMes[oi];
+      var outrosVals=valoresMes.filter(function(_,idx){return idx!==oi;});
+      var mediaOutros=outrosVals.reduce(function(s,v){return s+v;},0)/Math.max(1,outrosVals.length);
+      if(mediaOutros>0&&valorMes>mediaOutros*2.5){
+        outlier={mesKey:mesesValidos[oi],valor:valorMes,mediaOutros:mediaOutros};
+        break;
+      }
+    }
+  }
   var at=p.at||0;
+  var transito=emTransito(p.id);
+  var atProjetado=at+transito;
   var cobMeses=cmm>0?at/cmm:Infinity;
   var diasRest=cmm>0?Math.round(cobMeses*30):Infinity;
   var dataRuptura=null;
   if(cmm>0&&at>0){var dr=new Date();dr.setDate(dr.getDate()+diasRest);dataRuptura=dr.toISOString().slice(0,10);}
   var alvoMeses=leadDias/30+1;                                  // cobrir reposição + 1 mês de segurança
-  var sugestao=cmm>0?Math.max(0,Math.ceil(cmm*alvoMeses)-at):0;
+  // Sugestão de compra já considera o que está em trânsito, para não duplicar pedido.
+  var sugestao=cmm>0?Math.max(0,Math.ceil(cmm*alvoMeses)-atProjetado):0;
   var ptoRessup=cmm>0?Math.ceil(cmm/30*leadDias):0;            // demanda esperada durante a reposição
   var status,cor,badge;
   if(at<=0){status='Ruptura';cor='#ef4444';badge='br';}
@@ -830,9 +905,9 @@ function cmmInfo(p,janela,leadDias){
   else if(diasRest<=leadDias){status='Crítico';cor='#ef4444';badge='br';}
   else if(diasRest<=leadDias*2){status='Atenção';cor='#f59e0b';badge='bw';}
   else{status='Saudável';cor='#10b981';badge='bg';}
-  return{cmm:cmm,cobMeses:cobMeses,diasRest:diasRest,dataRuptura:dataRuptura,sugestao:sugestao,ptoRessup:ptoRessup,mesesEf:mesesEf,soma:soma,status:status,cor:cor,badge:badge};
+  return{cmm:cmm,cobMeses:cobMeses,diasRest:diasRest,dataRuptura:dataRuptura,sugestao:sugestao,ptoRessup:ptoRessup,mesesEf:mesesEf,soma:soma,status:status,cor:cor,badge:badge,leadDias:leadDias,transito:transito,atProjetado:atProjetado,outlier:outlier};
 }
-var RUP_ORDEM={'Ruptura':0,'Crítico':1,'Atenção':2,'Sem consumo':3,'Saudável':4};
+var RUP_ORDEM={'Ruptura':0,'Crítico':1,'Atenção':2,'Saudável':3,'Sem consumo':4};
 
 // LOG
 function addLog(tipo,msg,icon){
@@ -1212,10 +1287,15 @@ function setRupLead(v){rupLead=+v;rRup();updateBadge();}
 
 function rRup(){
   if(!g('rup-tbl'))return;
-  var lista=prods.map(function(p){return{p:p,info:cmmInfo(p,rupJanela,rupLead)};});
+  var abc=classificarABC();
+  var lista=prods.map(function(p){return{p:p,info:cmmInfo(p,rupJanela,rupLead),classe:(abc.mapa[p.id]?abc.mapa[p.id].classe:null)};});
   lista.sort(function(a,b){
     var oa=RUP_ORDEM[a.info.status],ob=RUP_ORDEM[b.info.status];
     if(oa!==ob)return oa-ob;
+    // Dentro do mesmo nível de criticidade, prioriza classe A (maior impacto financeiro) primeiro
+    var ordClasse={A:0,B:1,C:2,null:3};
+    var ca=ordClasse[a.classe===null?'null':a.classe],cb=ordClasse[b.classe===null?'null':b.classe];
+    if(ca!==cb)return ca-cb;
     var da=isFinite(a.info.diasRest)?a.info.diasRest:9e9;
     var db=isFinite(b.info.diasRest)?b.info.diasRest:9e9;
     return da-db;
@@ -1224,24 +1304,31 @@ function rRup(){
   var nCrit=lista.filter(function(x){return x.info.status==='Crítico';}).length;
   var nAt=lista.filter(function(x){return x.info.status==='Atenção';}).length;
   var nSem=lista.filter(function(x){return x.info.status==='Sem consumo';}).length;
+  var nCritA=lista.filter(function(x){return(x.info.status==='Crítico'||x.info.status==='Ruptura')&&x.classe==='A';}).length;
   g('rup-kpis').innerHTML=
     '<div class="kpi '+(nRup>0?'r':'g')+'"><div class="kl">Em Ruptura</div><div class="kv" style="color:'+(nRup>0?'#991b1b':'#065f46')+'">'+nRup+'</div><div class="ks">estoque zerado</div><div class="ki">⛔</div></div>'
-    +'<div class="kpi '+(nCrit>0?'r':'g')+(nCrit>0?' crit-kpi':'')+'"><div class="kl">Crítico ('+rupLead+'d)</div><div class="kv" style="color:'+(nCrit>0?'#991b1b':'#065f46')+'">'+nCrit+'</div><div class="ks">rompe dentro do prazo de reposição</div><div class="ki">🚨</div></div>'
-    +'<div class="kpi '+(nAt>0?'w':'g')+'"><div class="kl">Atenção</div><div class="kv" style="color:'+(nAt>0?'#92400e':'#065f46')+'">'+nAt+'</div><div class="ks">rompe em até '+(rupLead*2)+' dias</div><div class="ki">⚠️</div></div>'
+    +'<div class="kpi '+(nCrit>0?'r':'g')+(nCrit>0?' crit-kpi':'')+'"><div class="kl">Crítico</div><div class="kv" style="color:'+(nCrit>0?'#991b1b':'#065f46')+'">'+nCrit+'</div><div class="ks">'+(nCritA>0?nCritA+' deles são classe A ⚠️':'rompe dentro do prazo de reposição do item')+'</div><div class="ki">🚨</div></div>'
+    +'<div class="kpi '+(nAt>0?'w':'g')+'"><div class="kl">Atenção</div><div class="kv" style="color:'+(nAt>0?'#92400e':'#065f46')+'">'+nAt+'</div><div class="ks">rompe em até 2x o lead time</div><div class="ki">⚠️</div></div>'
     +'<div class="kpi b"><div class="kl">Sem Consumo</div><div class="kv" style="color:#1e40af">'+nSem+'</div><div class="ks">parado na janela — possível obsoleto</div><div class="ki">💤</div></div>';
-  g('rup-legenda').textContent='Janela: '+rupJanela+' meses · Reposição: '+rupLead+' dias';
+  g('rup-legenda').textContent='Janela: '+rupJanela+' meses · Reposição padrão: '+rupLead+' dias (produtos com lead time próprio usam o valor cadastrado) · ABC: valor de saída nos últimos 12 meses';
   var rows='';
   lista.forEach(function(x){
-    var p=x.p,info=x.info;
+    var p=x.p,info=x.info,classe=x.classe;
     var cob=info.cmm>0?info.cobMeses.toFixed(1)+' m':'∞';
     var dias=isFinite(info.diasRest)?info.diasRest+' d':'—';
     var prev=info.dataRuptura?fmtDt(info.dataRuptura):'—';
     var cmmTxt=info.cmm>0?info.cmm.toFixed(1):'0';
+    var leadTag=(p.lead>0)?'<span title="Lead time próprio deste produto" style="font-size:9px;color:#7c3aed">⏱'+p.lead+'d</span>':'';
+    var outlierTag=info.outlier?'<span title="Mês '+info.outlier.mesKey+' teve consumo de '+info.outlier.valor+' un., bem acima da média dos outros meses ('+info.outlier.mediaOutros.toFixed(1)+' un.). O CMM pode estar inflado por um pico isolado." style="font-size:13px;cursor:help">📈⚠️</span>':'';
     var sug=info.sugestao>0?'<strong style="color:#b45309">'+info.sugestao+' un</strong>':'—';
+    var transitoTxt=info.transito>0?'<span style="color:#7c3aed;font-weight:600">🚚 '+info.transito+'</span>':'<span style="color:#cbd5e1">—</span>';
+    var classeTxt=classe?'<span class="badge '+CLASSE_BADGE[classe]+'" style="color:'+CLASSE_COR[classe]+'" title="Classe '+classe+' de valor de saída (12 meses)">'+classe+'</span>':'<span style="color:#cbd5e1;font-size:10px" title="Sem saída nos últimos 12 meses">—</span>';
     rows+='<tr'+(info.status==='Crítico'||info.status==='Ruptura'?' style="background:#fff5f5"':'')+'>'
-      +'<td style="font-weight:500;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.n||'')+'</td>'
+      +'<td style="font-weight:500;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.n||'')+' '+leadTag+'</td>'
+      +'<td>'+classeTxt+'</td>'
       +'<td style="font-weight:700;color:'+(((p.at||0)<=0)?'#ef4444':'#1a2332')+'">'+(p.at||0)+'</td>'
-      +'<td>'+cmmTxt+'</td>'
+      +'<td>'+transitoTxt+'</td>'
+      +'<td>'+cmmTxt+' '+outlierTag+'</td>'
       +'<td>'+cob+'</td>'
       +'<td style="font-weight:600;color:'+info.cor+'">'+dias+'</td>'
       +'<td style="font-size:11px;color:#475569">'+prev+'</td>'
@@ -1250,16 +1337,16 @@ function rRup(){
       +'<td><button class="ib blue" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">📋</button></td>'
       +'</tr>';
   });
-  g('rup-tbl').innerHTML=rows||'<tr class="er"><td colspan="9">Nenhum produto cadastrado</td></tr>';
+  g('rup-tbl').innerHTML=rows||'<tr class="er"><td colspan="11">Nenhum produto cadastrado</td></tr>';
 }
 
 function exportRup(){
   var now=new Date().toISOString().slice(0,10);
   var lista=prods.map(function(p){return{p:p,info:cmmInfo(p,rupJanela,rupLead)};});
   lista.sort(function(a,b){var oa=RUP_ORDEM[a.info.status],ob=RUP_ORDEM[b.info.status];return oa!==ob?oa-ob:0;});
-  var rows=[['Produto','CA','Categoria','Estoque','CMM (un/mes)','Meses considerados','Cobertura (meses)','Dias restantes','Previsao ruptura','Ponto ressup.','Sugestao compra','Status','Janela(meses)','Reposicao(dias)']];
+  var rows=[['Produto','CA','Categoria','Estoque','Em Transito','Estoque+Transito','CMM (un/mes)','Meses considerados','Cobertura (meses)','Dias restantes','Previsao ruptura','Ponto ressup.','Sugestao compra','Status','Janela(meses)','Lead time usado(dias)','Alerta outlier']];
   lista.forEach(function(x){var p=x.p,i=x.info;
-    rows.push([p.n,p.ca,p.cat,(p.at||0),i.cmm.toFixed(2),i.mesesEf,isFinite(i.cobMeses)?i.cobMeses.toFixed(2):'',isFinite(i.diasRest)?i.diasRest:'',i.dataRuptura||'',i.ptoRessup,i.sugestao,i.status,rupJanela,rupLead]);
+    rows.push([p.n,p.ca,p.cat,(p.at||0),i.transito,i.atProjetado,i.cmm.toFixed(2),i.mesesEf,isFinite(i.cobMeses)?i.cobMeses.toFixed(2):'',isFinite(i.diasRest)?i.diasRest:'',i.dataRuptura||'',i.ptoRessup,i.sugestao,i.status,rupJanela,i.leadDias,i.outlier?('Mês '+i.outlier.mesKey+': '+i.outlier.valor+' un (média outros: '+i.outlier.mediaOutros.toFixed(1)+')'):'']);
   });
   dlCSV('Ruptura_CMM_'+now+'.csv',rows);
 }
@@ -1270,13 +1357,15 @@ function opP(id){
     g('pn').value=p.n||'';g('pca').value=p.ca||'';cs.value=p.cat||'Luvas';
     g('pmn').value=p.mn||0;g('pmx').value=p.mx||0;g('pid2').value=p.id2||0;g('pat').value=p.at||0;
     g('pb').value=p.b||0;g('pdp').value=p.dp||0;g('pdi2').value=p.di||0;g('pf').value=p.f||0;
-  }else{g('pn').value='';g('pca').value='';g('pmn').value=10;g('pmx').value=50;g('pid2').value=30;g('pat').value=0;['pb','pdp','pdi2','pf'].forEach(function(x){g(x).value=0;});}
+    g('plead').value=p.lead||'';
+  }else{g('pn').value='';g('pca').value='';g('pmn').value=10;g('pmx').value=50;g('pid2').value=30;g('pat').value=0;['pb','pdp','pdi2','pf'].forEach(function(x){g(x).value=0;});g('plead').value='';}
   g('mp').classList.add('open');
 }
 function svP(){
   var nome=g('pn').value.trim();if(!nome){alert('Informe o nome');return;}
   var id=ePid||uid();
-  var obj={id:id,n:nome,ca:+g('pca').value||0,cat:g('pcat').value,mn:+g('pmn').value,mx:+g('pmx').value,id2:+g('pid2').value,at:+g('pat').value,b:+g('pb').value,dp:+g('pdp').value,di:+g('pdi2').value,f:+g('pf').value};
+  var leadVal=g('plead').value.trim();
+  var obj={id:id,n:nome,ca:+g('pca').value||0,cat:g('pcat').value,mn:+g('pmn').value,mx:+g('pmx').value,id2:+g('pid2').value,at:+g('pat').value,b:+g('pb').value,dp:+g('pdp').value,di:+g('pdi2').value,f:+g('pf').value,lead:leadVal?+leadVal:0};
   var btn=g('mp').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
   db.ref('epis/'+id).set(obj)
     .then(function(){
@@ -1300,7 +1389,10 @@ function rFicha(){
   var pid=curFichaPid;var p=prods.find(function(x){return x.id===pid;});if(!p)return;
   g('ficha-title').textContent='📋 Ficha: '+p.n;
   var pct=Math.min(100,Math.round(((p.at||0)/(p.mx||1))*100));var s=st(p);var sc=s==='Baixo'?'#ef4444':s==='Alto'?'#3b82f6':'#10b981';
-  g('ficha-header').innerHTML='<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><div><div style="font-size:13px;font-weight:600">'+esc(p.n)+'</div><div style="font-size:11px;color:#64748b;margin-top:3px">CA: '+esc(String(p.ca||''))+' · '+esc(p.cat||'')+'</div></div><div style="margin-left:auto;display:flex;gap:12px;flex-wrap:wrap"><div style="text-align:center"><div style="font-size:10px;color:#64748b">Atual</div><div style="font-size:20px;font-weight:700;color:'+sc+'">'+(p.at||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Mín</div><div style="font-size:20px;font-weight:700">'+(p.mn||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Máx</div><div style="font-size:20px;font-weight:700">'+(p.mx||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Situação</div><span class="badge '+sb(p)+'">'+s+'</span></div></div></div>';
+  var abcMapa=classificarABC().mapa;
+  var classeP=abcMapa[pid]?abcMapa[pid].classe:null;
+  var classeTag=classeP?'<span class="badge '+CLASSE_BADGE[classeP]+'" style="color:'+CLASSE_COR[classeP]+'" title="Classe '+classeP+' de valor de saída (12 meses)">Classe '+classeP+'</span>':'';
+  g('ficha-header').innerHTML='<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><div><div style="font-size:13px;font-weight:600">'+esc(p.n)+' '+classeTag+'</div><div style="font-size:11px;color:#64748b;margin-top:3px">CA: '+esc(String(p.ca||''))+' · '+esc(p.cat||'')+'</div></div><div style="margin-left:auto;display:flex;gap:12px;flex-wrap:wrap"><div style="text-align:center"><div style="font-size:10px;color:#64748b">Atual</div><div style="font-size:20px;font-weight:700;color:'+sc+'">'+(p.at||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Mín</div><div style="font-size:20px;font-weight:700">'+(p.mn||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Máx</div><div style="font-size:20px;font-weight:700">'+(p.mx||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Situação</div><span class="badge '+sb(p)+'">'+s+'</span></div></div></div>';
   var ano=g('ficha-ano').value,mes=g('ficha-mes').value;
   var fMovs=movs.filter(function(m){var ok=m.pid===pid;if(ano)ok=ok&&(m.dt||'').startsWith(ano);if(mes)ok=ok&&(m.dt||'').slice(5,7)===mes;return ok;}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});
   var totEnt=fMovs.filter(function(m){return m.io==='Entrada';}).reduce(function(s,m){return s+Math.abs(m.q||0);},0);
@@ -1319,15 +1411,31 @@ function rFicha(){
   var cobTxt=ci.cmm>0?ci.cobMeses.toFixed(1)+' meses ('+ci.diasRest+' dias)':'sem consumo na janela';
   var prevTxt=ci.dataRuptura?fmtDt(ci.dataRuptura):'—';
   var sugTxt=ci.sugestao>0?'Comprar ~'+ci.sugestao+' un':'estoque suficiente';
+  var transitoTxt=ci.transito>0?ci.transito+' un a caminho (considerado na sugestão)':'nenhum pedido em trânsito';
+  var leadReal=leadTimeReal(pid);
+  var leadCadastrado=ci.leadDias;
+  var leadCompHtml;
+  if(leadReal){
+    var diff=leadReal.media-leadCadastrado;
+    var diffTxt=diff===0?'igual ao cadastrado':(diff>0?('+'+diff+'d mais lento que o cadastrado'):(diff+'d mais rápido que o cadastrado'));
+    var diffCor=Math.abs(diff)<=5?'#10b981':(diff>0?'#ef4444':'#3b82f6');
+    leadCompHtml='<div><div class="kl">Lead Time</div><div style="font-size:13px;font-weight:600">Cadastrado: '+leadCadastrado+'d</div><div style="font-size:12px;color:'+diffCor+';font-weight:600">Real médio: '+leadReal.media+'d ('+diffTxt+')</div><div style="font-size:9px;color:#94a3b8">baseado em '+leadReal.amostras+' recebimento(s): '+leadReal.valores.join('d, ')+'d</div></div>';
+  }else{
+    leadCompHtml='<div><div class="kl">Lead Time</div><div style="font-size:13px;font-weight:600">Cadastrado: '+leadCadastrado+'d</div><div style="font-size:10px;color:#94a3b8">Sem histórico de recebimentos confirmados ainda para medir o real</div></div>';
+  }
+  var outlierHtml=ci.outlier?'<div class="al al-w" style="margin-top:8px;font-size:11px">📈⚠️ O mês '+ci.outlier.mesKey+' teve '+ci.outlier.valor+' un. de saída, bem acima da média dos outros meses ('+ci.outlier.mediaOutros.toFixed(1)+' un.). O CMM acima pode estar inflado por esse pico isolado.</div>':'';
   g('ficha-cmm').innerHTML='<div class="card" style="margin-bottom:0;border-left:4px solid '+ci.cor+'"><div style="padding:12px 14px">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:12px;font-weight:700">📉 Diagnóstico de Ruptura (CMM)</div><span class="badge '+ci.badge+'">'+ci.status+'</span></div>'
-    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px">'
+    +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">'
     +'<div><div class="kl">CMM</div><div style="font-size:16px;font-weight:700">'+(ci.cmm>0?ci.cmm.toFixed(1):'0')+' <span style="font-size:10px;color:#94a3b8">un/mês</span></div></div>'
     +'<div><div class="kl">Cobertura</div><div style="font-size:13px;font-weight:600;color:'+ci.cor+'">'+cobTxt+'</div></div>'
     +'<div><div class="kl">Previsão ruptura</div><div style="font-size:13px;font-weight:600">'+prevTxt+'</div></div>'
     +'<div><div class="kl">Sugestão</div><div style="font-size:13px;font-weight:600;color:#b45309">'+sugTxt+'</div></div>'
+    +'<div><div class="kl">🚚 Em Trânsito</div><div style="font-size:13px;font-weight:600;color:#7c3aed">'+transitoTxt+'</div></div>'
+    +leadCompHtml
     +'</div>'
-    +'<div style="font-size:10px;color:#94a3b8;margin-top:8px">Base: '+ci.soma+' un saídas em '+ci.mesesEf+' mês(es) · janela '+rupJanela+'m · reposição '+rupLead+'d</div>'
+    +outlierHtml
+    +'<div style="font-size:10px;color:#94a3b8;margin-top:8px">Base: '+ci.soma+' un saídas em '+ci.mesesEf+' mês(es) · janela '+rupJanela+'m</div>'
     +'</div></div>';
   g('ficha-kpis').innerHTML=sparkHtml+'<div class="card" style="margin-bottom:0"><div style="padding:12px"><div class="kl">Entradas</div><div class="kv" style="font-size:20px;color:#10b981">+'+totEnt+'</div></div></div>'+'<div class="card" style="margin-bottom:0"><div style="padding:12px"><div class="kl">Saídas</div><div class="kv" style="font-size:20px;color:#f59e0b">-'+totSai+'</div></div></div>'+'<div class="card" style="margin-bottom:0"><div style="padding:12px"><div class="kl">Valor Total Vendido</div><div class="kv" style="font-size:16px;color:#059669">'+brl(totVenda)+'</div></div></div>';
   var rows='';
@@ -1427,17 +1535,23 @@ function rM(){
     var dt=m.dt||'';
     return(!io||m.io===io)&&(!ano||dt.startsWith(ano))&&(!mes||dt.slice(5,7)===mes)&&((m.pn||'').toLowerCase().includes(q)||(m.en||'').toLowerCase().includes(q)||(m.nf||'').toLowerCase().includes(q));
   });
-  var ent=movs.filter(function(m){return m.io==='Entrada';}).reduce(function(s,m){return s+Math.abs(m.q||0);},0);
+  var ent=movs.filter(function(m){return m.io==='Entrada'&&!m.pendente;}).reduce(function(s,m){return s+Math.abs(m.q||0);},0);
   var sai=movs.filter(function(m){return m.io==='Saída';}).reduce(function(s,m){return s+Math.abs(m.q||0);},0);
   var vT=movs.filter(function(m){return m.io==='Saída';}).reduce(function(s,m){return s+(m.vt||0);},0);
-  g('mstats').innerHTML='<div class="card" style="margin-bottom:0"><div style="padding:12px 14px"><div style="font-size:10px;color:#64748b;margin-bottom:3px">Entradas (Qtd)</div><div style="font-size:22px;font-weight:700;color:#10b981">+'+ent.toLocaleString('pt-BR')+'</div></div></div>'
+  var pend=movs.filter(function(m){return m.pendente;});
+  var qtdPend=pend.reduce(function(s,m){return s+Math.abs(m.q||0);},0);
+  var vTPend=pend.reduce(function(s,m){return s+(m.vt||0);},0);
+  g('mstats').innerHTML='<div class="card" style="margin-bottom:0"><div style="padding:12px 14px"><div style="font-size:10px;color:#64748b;margin-bottom:3px">Entradas (Qtd) — já na loja</div><div style="font-size:22px;font-weight:700;color:#10b981">+'+ent.toLocaleString('pt-BR')+'</div></div></div>'
     +'<div class="card" style="margin-bottom:0"><div style="padding:12px 14px"><div style="font-size:10px;color:#64748b;margin-bottom:3px">Saídas (Qtd)</div><div style="font-size:22px;font-weight:700;color:#f59e0b">-'+sai.toLocaleString('pt-BR')+'</div></div></div>'
-    +'<div class="card" style="margin-bottom:0"><div style="padding:12px 14px"><div style="font-size:10px;color:#64748b;margin-bottom:3px">Valor Total Saídas</div><div style="font-size:18px;font-weight:700;color:#059669">'+brl(vT)+'</div></div></div>';
+    +'<div class="card" style="margin-bottom:0"><div style="padding:12px 14px"><div style="font-size:10px;color:#64748b;margin-bottom:3px">Valor Total Saídas</div><div style="font-size:18px;font-weight:700;color:#059669">'+brl(vT)+'</div></div></div>'
+    +'<div class="card" style="margin-bottom:0;'+(pend.length?'border-color:#fde68a;background:#fffbeb':'')+'"><div style="padding:12px 14px"><div style="font-size:10px;color:#92400e;margin-bottom:3px">🚚 Em Trânsito (fábrica)</div><div style="font-size:22px;font-weight:700;color:#92400e">'+qtdPend.toLocaleString('pt-BR')+'</div><div style="font-size:10px;color:#92400e;margin-top:2px">'+brl(vTPend)+' · '+pend.length+' pedido(s)</div></div></div>';
   var hasA=isG();g('th-acoes').style.display=hasA?'':'none';
   var rows='';
   list.forEach(function(m){
-    var ac=hasA?'<td><div style="display:flex;gap:3px"><button class="ib" onclick="opMEdit(\''+m.id+'\')" title="Editar">✏️</button><button class="ib red" onclick="dMov(\''+m.id+'\')" title="Excluir">🗑️</button></div></td>':'';
-    rows+='<tr class="'+(m.io==='Entrada'?'rin':'rout')+'"><td style="font-size:11px;color:#64748b;white-space:nowrap">'+fmtDt(m.dt)+'</td><td><span class="badge '+(m.io==='Entrada'?'bg':'bw')+'">'+esc(m.io||'')+'</span></td><td style="font-size:10px;color:#475569">'+esc(m.desc||'')+'</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">'+esc(m.pn||'')+'</td><td style="font-size:11px;color:#64748b">'+esc(m.en||'')+'</td><td style="font-weight:700;color:'+(m.q>0?'#10b981':'#f59e0b')+'">'+(m.q>0?'+':'')+Math.abs(m.q||0)+'</td><td style="font-size:11px">'+brl(m.vu)+'</td><td style="font-size:11px;font-weight:600;color:#059669">'+brl(m.vt)+'</td><td style="font-size:11px">'+(m.nf?'<span class="nf-tag">'+esc(m.nf)+'</span>':'<span style="color:#94a3b8">—</span>')+'</td>'+ac+'</tr>';
+    var isPend=!!m.pendente;
+    var ac=hasA?'<td><div style="display:flex;gap:3px">'+(isPend?'<button class="ib" style="color:#059669" onclick="confirmarRecebimento(\''+m.id+'\')" title="Confirmar Recebimento">📥</button>':'')+'<button class="ib" onclick="opMEdit(\''+m.id+'\')" title="Editar">✏️</button><button class="ib red" onclick="dMov(\''+m.id+'\')" title="Excluir">🗑️</button></div></td>':'';
+    var statusTag=isPend?'<span class="badge bw" title="Pedido feito, ainda não chegou na loja">🚚 Em trânsito</span>':'';
+    rows+='<tr class="'+(m.io==='Entrada'?'rin':'rout')+'"'+(isPend?' style="background:#fffbeb"':'')+'><td style="font-size:11px;color:#64748b;white-space:nowrap">'+fmtDt(m.dt)+'</td><td><span class="badge '+(m.io==='Entrada'?'bg':'bw')+'">'+esc(m.io||'')+'</span> '+statusTag+'</td><td style="font-size:10px;color:#475569">'+esc(m.desc||'')+'</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px">'+esc(m.pn||'')+'</td><td style="font-size:11px;color:#64748b">'+esc(m.en||'')+'</td><td style="font-weight:700;color:'+(m.q>0?'#10b981':'#f59e0b')+'">'+(m.q>0?'+':'')+Math.abs(m.q||0)+'</td><td style="font-size:11px">'+brl(m.vu)+'</td><td style="font-size:11px;font-weight:600;color:#059669">'+brl(m.vt)+'</td><td style="font-size:11px">'+(m.nf?'<span class="nf-tag">'+esc(m.nf)+'</span>':'<span style="color:#94a3b8">—</span>')+'</td>'+ac+'</tr>';
   });
   g('mtbl').innerHTML=rows||'<tr class="er"><td colspan="'+(hasA?10:9)+'">Nenhuma movimentação</td></tr>';
 }
@@ -1450,6 +1564,12 @@ function delAllMovs(){
 }
 function updMonths(){g('mmes').value='';}
 
+function togglePendenteUI(){
+  var cod=g('mtp').value;
+  var wrap=g('wrap-pendente');
+  if(wrap)wrap.style.display=(cod==='AQU+')?'':'none';
+  if(cod!=='AQU+'&&g('mpendente'))g('mpendente').checked=false;
+}
 function opM(){
   if(!isOp())return;
   if(!emps.length){alert('Cadastre pelo menos uma empresa antes de lançar uma movimentação.');return;}
@@ -1459,6 +1579,8 @@ function opM(){
   g('mem').innerHTML=empOpts;
   g('mdt').value=new Date().toISOString().slice(0,10);g('mob').value='';g('mnf').value='';g('mnfe').value='';
   g('mu').value=curUser?curUser.name:'';
+  if(g('mpendente'))g('mpendente').checked=false;
+  togglePendenteUI();
   itensMov=[{pid:prods[0]?prods[0].id:'',qty:1,mod:'manual',vu:0,vt:0}];
   renderItens();g('mm').classList.add('open');
 }
@@ -1468,10 +1590,58 @@ function opMEdit(id){
   g('mem').innerHTML=emps.slice().sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');}).map(function(c){return'<option value="'+c.id+'"'+(c.id===m.eid?' selected':'')+'>'+esc(c.n||'')+'</option>';}).join('');
   g('mtp').value=m.cod||'RET-';g('mdt').value=m.dt||'';g('mu').value=m.u||'';
   g('mob').value=m.obs||'';g('mnf').value=m.nf||'';g('mnfe').value=m.nfe||'';
+  togglePendenteUI();
+  if(g('mpendente'))g('mpendente').checked=!!m.pendente;
   itensMov=[{pid:m.pid||'',qty:Math.abs(m.q||1),mod:'manual',vu:m.vu||0,vt:m.vt||0}];
   renderItens();g('mm').classList.add('open');
 }
-function dMov(id){if(!isG())return;if(!confirm('Excluir esta movimentação?'))return;var m=movs.find(function(x){return x.id===id;});db.ref('movimentos/'+id).remove();if(m)addLog('mov','Movimentação excluída: '+m.pn+' ('+m.io+')');}
+function dMov(id){
+  if(!isG())return;if(!confirm('Excluir esta movimentação?'))return;
+  var m=movs.find(function(x){return x.id===id;});
+  // Se a movimentação já tinha entrado no estoque (não estava pendente), reverte ao excluir.
+  if(m&&m.pid&&!m.pendente){db.ref('epis/'+m.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(m.q||0));});}
+  db.ref('movimentos/'+id).remove();if(m)addLog('mov','Movimentação excluída: '+m.pn+' ('+m.io+')');
+}
+
+// Confirma que um pedido em trânsito chegou na loja: soma ao estoque,
+// remove a marcação de "pendente" e registra quantos dias o pedido realmente
+// levou (data do pedido até a confirmação), para alimentar o lead time real.
+function confirmarRecebimento(movId){
+  if(!isOp())return;
+  var m=movs.find(function(x){return x.id===movId;});if(!m)return;
+  if(!m.pendente){alert('Esta movimentação já foi recebida.');return;}
+  if(!confirm('Confirmar recebimento de '+Math.abs(m.q||0)+'x '+(m.pn||'')+' na loja?\n\nO estoque será atualizado agora.'))return;
+  var hojeISO=new Date().toISOString().slice(0,10);
+  var diasReais=null;
+  if(m.dt){
+    var dPedido=new Date(m.dt),dHoje=new Date(hojeISO);
+    diasReais=Math.max(0,Math.round((dHoje-dPedido)/86400000));
+  }
+  db.ref('movimentos/'+movId).update({pendente:false,dtRecebido:hojeISO,leadReal:diasReais})
+    .then(function(){
+      return db.ref('epis/'+m.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+(m.q||0));});
+    })
+    .then(function(){
+      var msgLead=diasReais!==null?(' · levou '+diasReais+' dia(s) da fábrica até a loja'):'';
+      addLog('mov','Recebimento confirmado: '+Math.abs(m.q||0)+'x '+(m.pn||'')+msgLead,'📥');
+      refreshPage();
+    })
+    .catch(function(err){alert('Erro ao confirmar recebimento:\n'+(err.message||err));});
+}
+
+// Lead time real médio de um produto: olha as últimas confirmações de recebimento
+// (movimentações AQU+ já recebidas que têm leadReal calculado) e tira a média.
+// Serve para comparar com o lead time cadastrado e avisar se a fábrica está
+// entregando mais rápido ou mais devagar do que o esperado.
+function leadTimeReal(pid,maxAmostras){
+  maxAmostras=maxAmostras||6;
+  var amostras=movs.filter(function(m){return m.pid===pid&&m.cod==='AQU+'&&!m.pendente&&typeof m.leadReal==='number';})
+    .sort(function(a,b){return(b.dtRecebido||'')>(a.dtRecebido||'')?1:-1;})
+    .slice(0,maxAmostras);
+  if(!amostras.length)return null;
+  var media=amostras.reduce(function(s,m){return s+m.leadReal;},0)/amostras.length;
+  return{media:Math.round(media),amostras:amostras.length,valores:amostras.map(function(m){return m.leadReal;})};
+}
 
 function svM(){
   if(!itensMov.length){alert('Adicione pelo menos um item.');return;}
@@ -1481,17 +1651,20 @@ function svM(){
   var descs={'RET-':'(-) Retirada / Venda','AQU+':'(+) Aquisição / Compra','AJU+':'(+) Ajuste de Estoque','AJU-':'(-) Ajuste de Estoque','DEV+':'(+) Devolução','DES-':'(-) Descarte'};
   var em=emps.find(function(c){return c.id===eid;});
   var dt=g('mdt').value,mu=g('mu').value||curUser.name,mnf=g('mnf').value,mnfe=g('mnfe').value,mob=g('mob').value;
+  // Pendente só se aplica a Aquisição/Compra: representa um pedido feito à fábrica
+  // que ainda não chegou na loja. Enquanto pendente, NÃO soma ao estoque atual.
+  var pendente=(cod==='AQU+'&&g('mpendente')&&g('mpendente').checked);
   var btnSv=g('mm').querySelector('button.bp2');if(btnSv){btnSv.disabled=true;btnSv.textContent='Salvando...';}
   function reEnableBtn(){var b=g('mm').querySelector('button.bp2');if(b){b.disabled=false;b.textContent='💾 Salvar Movimentação';}}
   if(eMid){
     var it=itensMov[0],pr=prods.find(function(p){return p.id===it.pid;});
     var old=movs.find(function(m){return m.id===eMid;});
-    // Reverte estoque antigo
-    if(old&&old.pid){db.ref('epis/'+old.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(old.q||0));});}
+    // Reverte estoque antigo (só se a versão antiga já havia sido somada, ou seja, não era pendente)
+    if(old&&old.pid&&!old.pendente){db.ref('epis/'+old.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(old.q||0));});}
     var nq=isIn?it.qty:-it.qty;
-    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob})
+    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
       .then(function(){
-        if(pr){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});}
+        if(pr&&!pendente){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});}
         addLog('mov','Movimentação editada: '+it.qty+'x '+(pr?pr.n:''),'✏️');
         reEnableBtn();
         cl('mm');
@@ -1506,15 +1679,15 @@ function svM(){
       var pr=prods.find(function(p){return p.id===it.pid;});if(!pr)return;
       var id=uid(),nq=isIn?it.qty:-it.qty;
       promises.push(
-        db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob})
-          .then(function(){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});})
+        db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
+          .then(function(){if(!pendente)db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});})
       );
       logItens.push(it.qty+'x '+pr.n);
     });
     if(!logItens.length){alert('Nenhum item válido encontrado. Verifique se os produtos estão corretamente selecionados.');reEnableBtn();return;}
     Promise.all(promises)
       .then(function(){
-        addLog('mov',descs[cod]+': '+logItens.join(', ')+(mnf?' ('+mnf+')':''),'↔️');
+        addLog('mov',descs[cod]+(pendente?' (🚚 em trânsito)':'')+': '+logItens.join(', ')+(mnf?' ('+mnf+')':''),'↔️');
         reEnableBtn();
         cl('mm');
       })
@@ -1538,14 +1711,36 @@ function rPR(){
   });
   g('prtbl').innerHTML=rows||'<tr class="er"><td colspan="7">Nenhum produto</td></tr>';
 }
+var ePRid=null;
 function edPR(id){
   if(!isG())return;var p=prods.find(function(x){return x.id===id;});if(!p)return;
-  var b=prompt('Preço Base / Custo (R$):',p.b||0);if(b===null)return;
-  var dp=prompt('Preço Diretoria (R$):',p.dp||0);if(dp===null)return;
-  var di=prompt('Preço Distribuidora (R$):',p.di||0);if(di===null)return;
-  var f=prompt('Preço Cliente Final (R$):',p.f||0);if(f===null)return;
-  db.ref('epis/'+id).update({b:+b,dp:+dp,di:+di,f:+f});
-  addLog('price','Preços editados: '+p.n+' (Base: R$'+b+' / Final: R$'+f+')','💰');
+  ePRid=id;
+  g('price-title').textContent='Editar Preços — '+p.n;
+  g('price-prod-name').value=p.n;
+  g('pr-b').value=p.b||0;g('pr-dp').value=p.dp||0;g('pr-di').value=p.di||0;g('pr-f').value=p.f||0;
+  atualizarPreviewMargem();
+  g('m-price').classList.add('open');
+}
+function atualizarPreviewMargem(){
+  var b=+g('pr-b').value||0,f=+g('pr-f').value||0;
+  var mg=b>0?Math.round((f-b)/b*100):0;
+  g('price-margem-preview').textContent=b>0?('Margem Base → Cliente Final: '+mg+'% ('+brl(f-b)+' por unidade)'):'Informe o preço base para calcular a margem.';
+}
+function svPR(){
+  if(!isG()||!ePRid)return;
+  var p=prods.find(function(x){return x.id===ePRid;});if(!p)return;
+  var b=+g('pr-b').value||0,dp=+g('pr-dp').value||0,di=+g('pr-di').value||0,f=+g('pr-f').value||0;
+  var btn=g('m-price').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  db.ref('epis/'+ePRid).update({b:b,dp:dp,di:di,f:f})
+    .then(function(){
+      addLog('price','Preços editados: '+p.n+' (Base: '+brl(b)+' / Final: '+brl(f)+')','💰');
+      if(btn){btn.disabled=false;btn.textContent='💾 Salvar Preços';}
+      cl('m-price');
+    })
+    .catch(function(err){
+      alert('Erro ao salvar preços:\n'+(err.message||err));
+      if(btn){btn.disabled=false;btn.textContent='💾 Salvar Preços';}
+    });
 }
 
 // ══════════════════════════════════════════════
@@ -1578,8 +1773,90 @@ function rR(){
   var anoAtualKpi=new Date().getFullYear().toString();
   var totalVendasHist=historico.filter(function(h){return h.ano===anoAtualKpi;}).reduce(function(s,h){return s+(h.vs||0);},0);
   totalVendas+=totalVendasHist;
-  g('rfk').innerHTML='<div class="kpi g"><div class="kl">Valor a Custo</div><div class="kv" style="font-size:16px">'+brl(tvb)+'</div></div><div class="kpi b"><div class="kl">Valor Preço Final</div><div class="kv" style="font-size:16px">'+brl(tvf)+'</div></div><div class="kpi w"><div class="kl">Potencial Margem</div><div class="kv" style="font-size:16px">'+brl(tvf-tvb)+'</div></div><div class="kpi r" style="cursor:default"><div class="kl">Total já Vendido</div><div class="kv" style="font-size:16px">'+brl(totalVendas)+'</div><div class="ks">'+mg+'% margem média</div></div>';
-  var fr='';prods.slice().sort(function(a,b){return(b.at||0)*(b.b||0)-(a.at||0)*(a.b||0);}).forEach(function(p){var m2=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;fr+='<tr><td style="font-size:11px;font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.n||'')+'</td><td>'+(p.at||0)+'</td><td style="font-size:11px">'+brl(p.b)+'</td><td style="font-size:11px;color:#059669;font-weight:500">'+brl(p.f)+'</td><td style="font-size:11px">'+brl((p.at||0)*(p.b||0))+'</td><td style="font-size:11px;font-weight:600;color:#059669">'+brl((p.at||0)*(p.f||0))+'</td><td><span class="badge bb">'+m2+'%</span></td></tr>';});g('rftbl').innerHTML=fr;
+  // Margem REAL sobre vendas já realizadas: usa o valor de venda de fato cobrado (m.vt) em
+  // cada movimentação — que já reflete a modalidade praticada (Diretoria/Distribuidora/Cliente
+  // Final) — menos o custo base do produto. Isto é diferente da "Margem Potencial" abaixo, que é
+  // hipotética sobre o estoque parado assumindo preço Cliente Final. Custo base é o cadastrado
+  // hoje no produto (o sistema não guarda histórico de custo por movimentação).
+  var saidas=movs.filter(function(m){return m.io==='Saída'&&m.pid;});
+  var custoVendido=saidas.reduce(function(s,m){var p=prods.find(function(pp){return pp.id===m.pid;});return s+Math.abs(m.q||0)*(p?p.b||0:0);},0);
+  var vendaRealSemHist=saidas.reduce(function(s,m){return s+(m.vt||0);},0);
+  var margemReal=vendaRealSemHist-custoVendido;
+  var margemRealPct=custoVendido>0?Math.round(margemReal/custoVendido*100):0;
+  g('rfk').innerHTML='<div class="kpi g"><div class="kl">Valor a Custo (Estoque)</div><div class="kv" style="font-size:16px">'+brl(tvb)+'</div></div><div class="kpi b"><div class="kl">Valor Preço Final (Estoque)</div><div class="kv" style="font-size:16px">'+brl(tvf)+'</div></div><div class="kpi w"><div class="kl">Margem Potencial</div><div class="kv" style="font-size:16px">'+brl(tvf-tvb)+'</div><div class="ks">hipotética, se vender tudo a preço Cliente Final</div></div><div class="kpi r" style="cursor:default"><div class="kl">Total já Vendido</div><div class="kv" style="font-size:16px">'+brl(totalVendas)+'</div><div class="ks">'+mg+'% margem média (estoque atual)</div></div>'
+    +'<div class="kpi g" style="cursor:default"><div class="kl">💰 Margem Real Obtida</div><div class="kv" style="font-size:16px;color:#059669">'+brl(margemReal)+'</div><div class="ks">'+margemRealPct+'% sobre custo · baseada no preço de fato cobrado em cada venda registrada</div></div>';
+  var fr='';prods.slice().sort(function(a,b){return(b.at||0)*(b.b||0)-(a.at||0)*(a.b||0);}).forEach(function(p){var m2=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;
+    var sP=saidas.filter(function(m){return m.pid===p.id;});
+    var vtRealP=sP.reduce(function(s,m){return s+(m.vt||0);},0);
+    var custoRealP=sP.reduce(function(s,m){return s+Math.abs(m.q||0)*(p.b||0);},0);
+    var margRealP=vtRealP-custoRealP;
+    fr+='<tr><td style="font-size:11px;font-weight:500;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.n||'')+'</td><td>'+(p.at||0)+'</td><td style="font-size:11px">'+brl(p.b)+'</td><td style="font-size:11px;color:#059669;font-weight:500">'+brl(p.f)+'</td><td style="font-size:11px">'+brl((p.at||0)*(p.b||0))+'</td><td style="font-size:11px;font-weight:600;color:#059669">'+brl((p.at||0)*(p.f||0))+'</td><td><span class="badge bb">'+m2+'%</span></td><td style="font-size:11px;font-weight:600;color:'+(margRealP>=0?'#059669':'#ef4444')+'">'+brl(margRealP)+'</td></tr>';});g('rftbl').innerHTML=fr;
+
+  // Curva ABC
+  if(g('abc-tbl'))rABC();
+}
+
+// ══════════════════════════════════════════════
+// CURVA ABC (classificação por valor de saída)
+// ══════════════════════════════════════════════
+// Calcula a classificação ABC de todos os produtos com saída nos últimos 12 meses.
+// Retorna um mapa {pid: {n,cat,qtd,vt,pct,acum,classe}} para ser reutilizado em
+// qualquer tela (Ruptura, Ficha do Produto, Relatórios) sem duplicar a lógica.
+function classificarABC(){
+  var hoje=new Date();
+  var dtCorte=new Date(hoje.getFullYear(),hoje.getMonth()-12,hoje.getDate()).toISOString().slice(0,10);
+  var porProd={};
+  movs.forEach(function(m){
+    if(m.io!=='Saída'||!m.pid||(m.dt||'')<dtCorte)return;
+    if(!porProd[m.pid])porProd[m.pid]={pid:m.pid,n:m.pn||'',qtd:0,vt:0};
+    porProd[m.pid].qtd+=Math.abs(m.q||0);
+    porProd[m.pid].vt+=(m.vt||0);
+  });
+  var lista=Object.values(porProd).sort(function(a,b){return b.vt-a.vt;});
+  var totalVt=lista.reduce(function(s,x){return s+x.vt;},0);
+  var acumPct=0,mapa={};
+  lista.forEach(function(x){
+    var p=prods.find(function(pp){return pp.id===x.pid;});
+    x.cat=p?p.cat:'';
+    x.pct=totalVt>0?(x.vt/totalVt*100):0;
+    acumPct+=x.pct;
+    x.acum=acumPct;
+    if(acumPct<=80)x.classe='A';
+    else if(acumPct<=95)x.classe='B';
+    else x.classe='C';
+    mapa[x.pid]=x;
+  });
+  return{lista:lista,mapa:mapa,totalVt:totalVt};
+}
+var CLASSE_COR={A:'#059669',B:'#d97706',C:'#94a3b8'};
+var CLASSE_BADGE={A:'bg',B:'bw',C:'bgr'};
+
+function rABC(){
+  var abc=classificarABC();
+  var lista=abc.lista,totalVt=abc.totalVt;
+  var nA=lista.filter(function(x){return x.classe==='A';}).length;
+  var nB=lista.filter(function(x){return x.classe==='B';}).length;
+  var nC=lista.filter(function(x){return x.classe==='C';}).length;
+  g('abc-kpis').innerHTML=
+    '<div class="kpi g"><div class="kl">Classe A</div><div class="kv" style="color:#065f46">'+nA+'</div><div class="ks">itens · ~80% do valor vendido</div><div class="ki">🟢</div></div>'
+    +'<div class="kpi w"><div class="kl">Classe B</div><div class="kv" style="color:#92400e">'+nB+'</div><div class="ks">itens · 80–95% do valor</div><div class="ki">🟡</div></div>'
+    +'<div class="kpi b"><div class="kl">Classe C</div><div class="kv" style="color:#1e40af">'+nC+'</div><div class="ks">itens · 95–100% do valor</div><div class="ki">⚪</div></div>'
+    +'<div class="kpi r" style="cursor:default"><div class="kl">Valor Total (12m)</div><div class="kv" style="font-size:16px;color:#991b1b">'+brl(totalVt)+'</div><div class="ks">'+lista.length+' produtos com saída</div><div class="ki">💰</div></div>';
+  g('abc-legenda').textContent=lista.length+' produtos com movimentação de saída nos últimos 12 meses';
+  var rows='';
+  lista.forEach(function(x,i){
+    rows+='<tr'+(x.classe==='A'?' style="background:#f0fdf4"':'')+'>'
+      +'<td style="font-size:11px;color:#94a3b8">'+(i+1)+'</td>'
+      +'<td style="font-size:11px;font-weight:500;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(x.n)+'</td>'
+      +'<td style="font-size:10px;color:#64748b">'+esc(x.cat||'')+'</td>'
+      +'<td>'+x.qtd.toLocaleString('pt-BR')+'</td>'
+      +'<td style="font-weight:600;color:#059669">'+brl(x.vt)+'</td>'
+      +'<td style="font-size:11px">'+x.pct.toFixed(1)+'%</td>'
+      +'<td style="font-size:11px;color:#475569">'+x.acum.toFixed(1)+'%</td>'
+      +'<td><span class="badge '+CLASSE_BADGE[x.classe]+'" style="color:'+CLASSE_COR[x.classe]+'">'+x.classe+'</span></td>'
+      +'</tr>';
+  });
+  g('abc-tbl').innerHTML=rows||'<tr class="er"><td colspan="8">Sem saídas registradas nos últimos 12 meses</td></tr>';
 }
 
 // RELATÓRIO POR PERÍODO
@@ -1659,7 +1936,7 @@ function exportReport(){
   if(curTab==='re'){rows=[['Produto','CA','Mín','Máx','Atual','%','Situação','Val.Estoque']];prods.forEach(function(p){rows.push([p.n,p.ca,p.mn,p.mx,p.at,Math.round(((p.at||0)/(p.mx||1))*100)+'%',st(p),((p.at||0)*(p.b||0)).toFixed(2)]);});fn='Relatorio_Estoque_'+now+'.csv';}
   else if(curTab==='rc'){var low=prods.filter(function(p){return(p.at||0)<(p.mn||0);});rows=[['Produto','CA','Mín','Atual','Déficit','Sugerido','Custo Est.']];low.forEach(function(p){var sg=(p.mx||0)-(p.at||0);rows.push([p.n,p.ca,p.mn,p.at,(p.mn||0)-(p.at||0),sg,'R$'+(sg*(p.b||0)).toFixed(2)]);});fn='Relatorio_Compras_'+now+'.csv';}
   else if(curTab==='rl'){rows=[['Empresa','Tipo','Movs.','Total Unid.','Valor Total']];emps.forEach(function(c){var mv=movs.filter(function(m){return m.eid===c.id&&m.io==='Saída';});var tot=mv.reduce(function(s,m){return s+Math.abs(m.q||0);},0);var vt=mv.reduce(function(s,m){return s+(m.vt||0);},0);if(tot>0)rows.push([c.n,c.t,mv.length,tot,'R$'+vt.toFixed(2)]);});fn='Relatorio_Clientes_'+now+'.csv';}
-  else if(curTab==='rf'){rows=[['Produto','Qtd.','P.Base','P.Final','Val.Custo','Val.Venda','Margem']];prods.forEach(function(p){var m2=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;rows.push([p.n,p.at,p.b,p.f,((p.at||0)*(p.b||0)).toFixed(2),((p.at||0)*(p.f||0)).toFixed(2),m2+'%']);});fn='Relatorio_Financeiro_'+now+'.csv';}
+  else if(curTab==='rf'){rows=[['Produto','Qtd.','P.Base','P.Final','Val.Custo','Val.Venda','Margem%','MargemReal_Vendido']];prods.forEach(function(p){var m2=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;var sP=movs.filter(function(m){return m.io==='Saída'&&m.pid===p.id;});var vtRealP=sP.reduce(function(s,m){return s+(m.vt||0);},0);var custoRealP=sP.reduce(function(s,m){return s+Math.abs(m.q||0)*(p.b||0);},0);rows.push([p.n,p.at,p.b,p.f,((p.at||0)*(p.b||0)).toFixed(2),((p.at||0)*(p.f||0)).toFixed(2),m2+'%',(vtRealP-custoRealP).toFixed(2)]);});fn='Relatorio_Financeiro_'+now+'.csv';}
   else if(curTab==='rp'){var ini=g('rp-ini').value,fim=g('rp-fim').value;var filtMovs=movs.filter(function(m){return m.dt&&m.dt>=ini&&m.dt<=fim;});rows=[['Data','IO','Produto','Empresa','Qty','Vl.Unit.','Vl.Total','NF']];filtMovs.sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;}).forEach(function(m){rows.push([m.dt,m.io,m.pn,m.en,m.q,m.vu,m.vt,m.nf||'']);});fn='Relatorio_Periodo_'+ini+'_a_'+fim+'.csv';}
   if(rows.length>1)dlCSV(fn,rows);else alert('Nenhum dado para exportar.');
 }
