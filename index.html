@@ -649,12 +649,12 @@ select:focus,input:focus{border-color:#10b981}
         <div class="fgp"><label class="fl">Data</label><input class="fi" type="date" id="mdt"></div>
       </div>
       <div class="fg" style="margin-top:10px">
-        <div class="fgp"><label class="fl">Empresa / Cliente</label><select class="fi" id="mem"></select></div>
+        <div class="fgp"><label class="fl" id="lbl-mem">Empresa / Cliente</label><select class="fi" id="mem"></select></div>
         <div class="fgp"><label class="fl">Usuário Responsável</label><input class="fi" id="mu"></div>
       </div>
       <div class="fg" style="margin-top:10px">
+        <div class="fgp"><label class="fl" id="lbl-mnfe">Emitente / Fornecedor</label><input class="fi" id="mnfe" placeholder="Nome do emitente"></div>
         <div class="fgp"><label class="fl">Número da NF</label><input class="fi" id="mnf" placeholder="Ex: NF-001234"></div>
-        <div class="fgp"><label class="fl">Emitente / Fornecedor</label><input class="fi" id="mnfe" placeholder="Nome do emitente"></div>
       </div>
       <div class="fgp" style="margin-top:10px"><label class="fl">Observações</label><input class="fi" id="mob" placeholder="Opcional..."></div>
       <div class="fgp" id="wrap-pendente" style="margin-top:10px;display:none">
@@ -1564,21 +1564,40 @@ function delAllMovs(){
 }
 function updMonths(){g('mmes').value='';}
 
+var DESTINO_LOJA_ID='__loja_propria__';
+var DESTINO_LOJA_NOME='🏬 Estoque Loja Uniluvas';
 function togglePendenteUI(){
   var cod=g('mtp').value;
+  var isCompra=(cod==='AQU+');
   var wrap=g('wrap-pendente');
-  if(wrap)wrap.style.display=(cod==='AQU+')?'':'none';
-  if(cod!=='AQU+'&&g('mpendente'))g('mpendente').checked=false;
+  if(wrap)wrap.style.display=isCompra?'':'none';
+  if(!isCompra&&g('mpendente'))g('mpendente').checked=false;
+
+  // Numa Aquisição/Compra, o destino da mercadoria é a própria loja, não um cliente —
+  // então trocamos o select de "Empresa/Cliente" por uma opção fixa de loja própria,
+  // e o protagonismo passa para o campo Emitente/Fornecedor (quem está vendendo pra nós).
+  var lblMem=g('lbl-mem'),lblFornecedor=g('lbl-mnfe'),selMem=g('mem');
+  if(isCompra){
+    if(lblMem)lblMem.textContent='Destino';
+    if(lblFornecedor)lblFornecedor.textContent='Emitente / Fornecedor (fábrica) *';
+    if(selMem){selMem.innerHTML='<option value="'+DESTINO_LOJA_ID+'">'+DESTINO_LOJA_NOME+'</option>';selMem.value=DESTINO_LOJA_ID;selMem.disabled=true;}
+  }else{
+    if(lblMem)lblMem.textContent='Empresa / Cliente';
+    if(lblFornecedor)lblFornecedor.textContent='Emitente / Fornecedor';
+    if(selMem){
+      selMem.disabled=false;
+      selMem.innerHTML=emps.slice().sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');}).map(function(c){return'<option value="'+c.id+'">'+esc(c.n||'')+'</option>';}).join('');
+    }
+  }
 }
 function opM(){
   if(!isOp())return;
   if(!emps.length){alert('Cadastre pelo menos uma empresa antes de lançar uma movimentação.');return;}
   if(!prods.length){alert('Cadastre pelo menos um produto antes de lançar uma movimentação.');return;}
   eMid=null;g('mm-title').textContent='Nova Movimentação';
-  var empOpts=emps.slice().sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');}).map(function(c){return'<option value="'+c.id+'">'+esc(c.n||'')+'</option>';}).join('');
-  g('mem').innerHTML=empOpts;
   g('mdt').value=new Date().toISOString().slice(0,10);g('mob').value='';g('mnf').value='';g('mnfe').value='';
   g('mu').value=curUser?curUser.name:'';
+  g('mtp').value='RET-';
   if(g('mpendente'))g('mpendente').checked=false;
   togglePendenteUI();
   itensMov=[{pid:prods[0]?prods[0].id:'',qty:1,mod:'manual',vu:0,vt:0}];
@@ -1587,10 +1606,10 @@ function opM(){
 function opMEdit(id){
   if(!isG())return;eMid=id;var m=movs.find(function(x){return x.id===id;});if(!m)return;
   g('mm-title').textContent='Editar Movimentação';
-  g('mem').innerHTML=emps.slice().sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');}).map(function(c){return'<option value="'+c.id+'"'+(c.id===m.eid?' selected':'')+'>'+esc(c.n||'')+'</option>';}).join('');
   g('mtp').value=m.cod||'RET-';g('mdt').value=m.dt||'';g('mu').value=m.u||'';
   g('mob').value=m.obs||'';g('mnf').value=m.nf||'';g('mnfe').value=m.nfe||'';
   togglePendenteUI();
+  if(g('mtp').value!=='AQU+'&&m.eid)g('mem').value=m.eid;
   if(g('mpendente'))g('mpendente').checked=!!m.pendente;
   itensMov=[{pid:m.pid||'',qty:Math.abs(m.q||1),mod:'manual',vu:m.vu||0,vt:m.vt||0}];
   renderItens();g('mm').classList.add('open');
@@ -1645,15 +1664,22 @@ function leadTimeReal(pid,maxAmostras){
 
 function svM(){
   if(!itensMov.length){alert('Adicione pelo menos um item.');return;}
-  var eid=g('mem').value;
-  if(!eid){alert('Selecione uma empresa/cliente.');return;}
+  var eidRaw=g('mem').value;
+  if(!eidRaw){alert('Selecione uma empresa/cliente.');return;}
   var cod=g('mtp').value,isIn=cod.endsWith('+');
-  var descs={'RET-':'(-) Retirada / Venda','AQU+':'(+) Aquisição / Compra','AJU+':'(+) Ajuste de Estoque','AJU-':'(-) Ajuste de Estoque','DEV+':'(+) Devolução','DES-':'(-) Descarte'};
-  var em=emps.find(function(c){return c.id===eid;});
+  var isCompra=(cod==='AQU+');
+  // Numa Aquisição/Compra o destino é a própria loja, não um cliente — não gravamos eid
+  // (para não poluir relatórios e alertas que filtram por cliente real), e o nome de
+  // exibição (en) passa a ser o da loja.
+  var eid=isCompra?'':eidRaw;
+  var em=isCompra?null:emps.find(function(c){return c.id===eidRaw;});
+  var enNome=isCompra?DESTINO_LOJA_NOME:(em?em.n:'');
   var dt=g('mdt').value,mu=g('mu').value||curUser.name,mnf=g('mnf').value,mnfe=g('mnfe').value,mob=g('mob').value;
+  if(isCompra&&!mnfe.trim()){alert('Informe o nome do fornecedor/fábrica em "Emitente / Fornecedor".');return;}
+  var descs={'RET-':'(-) Retirada / Venda','AQU+':'(+) Aquisição / Compra','AJU+':'(+) Ajuste de Estoque','AJU-':'(-) Ajuste de Estoque','DEV+':'(+) Devolução','DES-':'(-) Descarte'};
   // Pendente só se aplica a Aquisição/Compra: representa um pedido feito à fábrica
   // que ainda não chegou na loja. Enquanto pendente, NÃO soma ao estoque atual.
-  var pendente=(cod==='AQU+'&&g('mpendente')&&g('mpendente').checked);
+  var pendente=(isCompra&&g('mpendente')&&g('mpendente').checked);
   var btnSv=g('mm').querySelector('button.bp2');if(btnSv){btnSv.disabled=true;btnSv.textContent='Salvando...';}
   function reEnableBtn(){var b=g('mm').querySelector('button.bp2');if(b){b.disabled=false;b.textContent='💾 Salvar Movimentação';}}
   if(eMid){
@@ -1662,7 +1688,7 @@ function svM(){
     // Reverte estoque antigo (só se a versão antiga já havia sido somada, ou seja, não era pendente)
     if(old&&old.pid&&!old.pendente){db.ref('epis/'+old.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(old.q||0));});}
     var nq=isIn?it.qty:-it.qty;
-    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
+    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:enNome,dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
       .then(function(){
         if(pr&&!pendente){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});}
         addLog('mov','Movimentação editada: '+it.qty+'x '+(pr?pr.n:''),'✏️');
@@ -1679,7 +1705,7 @@ function svM(){
       var pr=prods.find(function(p){return p.id===it.pid;});if(!pr)return;
       var id=uid(),nq=isIn?it.qty:-it.qty;
       promises.push(
-        db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:em?em.n:'',dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
+        db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:enNome,dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
           .then(function(){if(!pendente)db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});})
       );
       logItens.push(it.qty+'x '+pr.n);
