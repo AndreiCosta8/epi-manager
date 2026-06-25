@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -182,6 +183,33 @@ select:focus,input:focus{border-color:#10b981}
   .pg{padding:12px 14px}
   .fg,.fg3,.fg4{grid-template-columns:1fr}
   .modal{max-width:100%;margin:0}
+  /* Tabelas marcadas como .tbl-responsive viram cards verticais no celular,
+     em vez de exigir rolagem horizontal. Cada linha (tr) fica um cartão; cada
+     célula (td) mostra seu rótulo (vindo do data-label, injetado via JS a
+     partir do próprio cabeçalho da tabela) à esquerda e o valor à direita. */
+  .tbl-responsive{min-width:0}
+  .tbl-responsive thead{display:none}
+  .tbl-responsive tbody,.tbl-responsive tr{display:block;width:100%}
+  .tbl-responsive tr{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;padding:6px 4px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .tbl-responsive td{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;border-bottom:1px solid #f1f5f9;white-space:normal;max-width:none!important;overflow:visible!important;text-overflow:initial!important;text-align:right}
+  .tbl-responsive td:last-child{border-bottom:none}
+  .tbl-responsive td[data-label]::before{content:attr(data-label);font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;margin-right:8px;text-align:left}
+  .tbl-responsive td:not([data-label]):empty{display:none}
+  .tbl-responsive td[style*="width:100px"]{width:auto!important}
+  .tbl-responsive td[style*="width:100px"]>div:first-child{margin-bottom:0}
+  .tbl-responsive .sb{width:90px}
+  /* Nome do produto/empresa funciona como o "título" do cartão: ocupa a linha
+     toda, sem o rótulo em cima (já que o contexto é óbvio). Como a 1ª coluna
+     varia por tabela (Produtos começa com Foto; Movimentações com Data), o
+     destaque é aplicado à coluna certa em cada caso específico. */
+  #ptbl td:nth-child(2),#rup-tbl td:first-child,#etbl td:first-child{font-weight:600;font-size:13px;text-align:left;background:#f8fafc;border-radius:8px 8px 0 0;margin-bottom:2px}
+  #ptbl td:nth-child(2)::before,#rup-tbl td:first-child::before,#etbl td:first-child::before{display:none}
+  /* Produtos: a coluna Foto vira o topo do cartão (sem rótulo), e o nome (2ª coluna) já recebe o destaque acima. */
+  #ptbl td:first-child{justify-content:flex-start;background:transparent;border-bottom:none;padding-bottom:0}
+  #ptbl td:first-child::before{display:none}
+  /* Movimentações: a Data funciona melhor como cabeçalho do cartão. */
+  #mtbl tr td:first-child{font-weight:600;font-size:12px;text-align:left;background:#f8fafc;border-radius:8px 8px 0 0;margin-bottom:2px}
+  #mtbl tr td:first-child::before{display:none}
 }
 @media(max-width:420px){.kgrid,.g4{grid-template-columns:1fr}.login-box{padding:28px 20px}}
 @media print{.sidebar,.topbar,.fr button,.btn{display:none!important}.main{margin-left:0!important}.pg.active{padding:8px!important}}
@@ -312,6 +340,18 @@ select:focus,input:focus{border-color:#10b981}
 
 <!-- DASHBOARD -->
 <div class="pg active" id="pg-dashboard">
+  <div class="fr" style="margin-bottom:14px">
+    <div style="font-size:12px;color:#64748b;display:flex;align-items:center;gap:8px">📅 <span>Período:</span></div>
+    <select id="dash-mes" onchange="rD()" style="font-size:12px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff">
+      <option value="">Todo o histórico</option>
+      <option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option>
+      <option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option>
+      <option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option>
+      <option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+    </select>
+    <select id="dash-ano" onchange="rD()" style="font-size:12px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff"></select>
+    <span style="font-size:11px;color:#94a3b8" id="dash-periodo-label"></span>
+  </div>
   <div class="kgrid" id="dash-kpis"></div>
   <div class="kgrid" id="dash-extra-kpis" style="margin-top:-2px"></div>
   <div id="dash-crit-alert" style="margin-top:12px"></div>
@@ -339,7 +379,7 @@ select:focus,input:focus{border-color:#10b981}
     <button class="btn bexp bsm" onclick="exportCSV('products')">⬇ CSV</button>
     <button class="btn bp2 bsm" id="btn-new-prod" onclick="opP()">➕ Novo</button>
   </div>
-  <div class="card"><div class="tscroll"><table><thead><tr><th>#</th><th>Produto</th><th>CA</th><th>Cat.</th><th>Estoque</th><th>Situação</th><th>P.Base</th><th>P.Dist.</th><th>P.Final</th><th></th></tr></thead><tbody id="ptbl"></tbody></table></div></div>
+  <div class="card"><div class="tscroll"><table class="tbl-responsive"><thead><tr><th>Foto</th><th>Produto</th><th>CA</th><th>Cat.</th><th>Estoque</th><th>Situação</th><th></th></tr></thead><tbody id="ptbl"></tbody></table></div></div>
 </div>
 
 <!-- RUPTURA / CMM -->
@@ -373,7 +413,7 @@ select:focus,input:focus{border-color:#10b981}
   </div>
   <div class="g4" id="rup-kpis"></div>
   <div class="card"><div class="ch"><h3>Produtos ordenados por risco de ruptura</h3><span style="font-size:10px;color:#64748b" id="rup-legenda"></span></div>
-    <div class="tscroll"><table><thead><tr><th>Produto</th><th>ABC</th><th>Estoque</th><th>Em Trânsito</th><th>CMM (un/mês)</th><th>Cobertura</th><th>Dias rest.</th><th>Previsão ruptura</th><th>Sugestão compra</th><th>Status</th><th></th></tr></thead><tbody id="rup-tbl"></tbody></table></div>
+    <div class="tscroll"><table class="tbl-responsive"><thead><tr><th>Produto</th><th>ABC</th><th>Estoque</th><th>Em Trânsito</th><th>CMM (un/mês)</th><th>Cobertura</th><th>Dias rest.</th><th>Previsão ruptura</th><th>Sugestão compra</th><th>Status</th><th></th></tr></thead><tbody id="rup-tbl"></tbody></table></div>
   </div>
 </div>
 
@@ -387,7 +427,7 @@ select:focus,input:focus{border-color:#10b981}
     <button class="btn bp2 bsm" id="btn-new-emp" onclick="opE()">➕ Nova</button>
   </div>
   <div class="g3" id="estats"></div>
-  <div class="card"><div class="tscroll"><table><thead><tr><th>Empresa</th><th>Tipo</th><th>Pedidos</th><th>Vol. Total</th><th>Dias s/ Comprar</th><th>Ações</th></tr></thead><tbody id="etbl"></tbody></table></div></div>
+  <div class="card"><div class="tscroll"><table class="tbl-responsive"><thead><tr><th>Empresa</th><th>Tipo</th><th>Movimentações</th><th>Vol. Total</th><th>Dias s/ Comprar</th><th>Ações</th></tr></thead><tbody id="etbl"></tbody></table></div></div>
 </div>
 
 <!-- MOVIMENTAÇÕES -->
@@ -403,7 +443,7 @@ select:focus,input:focus{border-color:#10b981}
     <button class="btn bp2 bsm" id="btn-new-mov" onclick="opM()">➕ Nova</button>
   </div>
   <div class="g4" id="mstats"></div>
-  <div class="card"><div class="tscroll"><table><thead><tr><th>Data</th><th>Tipo</th><th>Operação</th><th>Produto</th><th>Empresa</th><th>Qty</th><th>Vl.Unit.</th><th>Vl.Total</th><th>Nota Fiscal</th><th id="th-acoes" style="display:none">Ações</th></tr></thead><tbody id="mtbl"></tbody></table></div></div>
+  <div class="card"><div class="tscroll"><table class="tbl-responsive"><thead><tr><th>Data</th><th>Tipo</th><th>Operação</th><th>Produto</th><th>Empresa</th><th>Qty</th><th>Vl.Unit.</th><th>Vl.Total</th><th>Nota Fiscal</th><th id="th-acoes" style="display:none">Ações</th></tr></thead><tbody id="mtbl"></tbody></table></div></div>
 </div>
 
 <!-- PREÇOS -->
@@ -586,6 +626,21 @@ select:focus,input:focus{border-color:#10b981}
 <div class="mbg" id="mp"><div class="modal">
   <div class="mh"><h3 id="mpt">Novo Produto</h3><button class="ib" onclick="cl('mp')">✕</button></div>
   <div class="mb">
+    <div class="fgp" style="margin-bottom:14px">
+      <label class="fl">Foto do Produto</label>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="pfoto-preview-wrap" style="width:72px;height:72px;border-radius:10px;background:#f1f5f9;border:1px solid #e2e8f0;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0">
+          <img id="pfoto-preview" style="display:none;width:100%;height:100%;object-fit:cover">
+          <span id="pfoto-placeholder" style="font-size:24px;color:#cbd5e1">📦</span>
+        </div>
+        <div style="flex:1">
+          <input type="file" id="pfoto-input" accept="image/*" style="display:none" onchange="onFotoSelecionada(event)">
+          <button type="button" class="btn bs2 bsm" onclick="g('pfoto-input').click()">📷 Escolher Foto</button>
+          <button type="button" class="btn bs2 bsm" id="pfoto-remover-btn" style="display:none;color:#ef4444" onclick="removerFoto()">Remover</button>
+          <div id="pfoto-status" style="font-size:10px;color:#94a3b8;margin-top:4px">Foto opcional. Será comprimida automaticamente.</div>
+        </div>
+      </div>
+    </div>
     <div class="fgp"><label class="fl">Nome do Produto *</label><input class="fi" id="pn" placeholder="Nome do EPI"></div>
     <div class="fg">
       <div class="fgp"><label class="fl">CA</label><input class="fi" type="number" id="pca" placeholder="Ex: 26381"></div>
@@ -781,6 +836,7 @@ const firebaseConfig={
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
 const auth=firebase.auth();
+const storage=firebase.storage();
 
 // ══════════════════════════════════════════════
 // ESTADO
@@ -997,6 +1053,28 @@ function refreshPage(){
   if(curFichaPid)rFicha();
 }
 
+// Injeta data-label em cada <td> das tabelas marcadas .tbl-responsive, usando o
+// texto do <th> correspondente. Isso permite que o CSS mobile mostre cada
+// célula como "Rótulo: valor" em formato de cartão, sem precisar duplicar a
+// lógica de renderização de nenhuma tabela em uma versão "mobile" separada.
+function aplicarLabelsResponsivos(tabela){
+  var ths=tabela.querySelectorAll('thead th');
+  var labels=Array.prototype.map.call(ths,function(th){return th.textContent.trim();});
+  tabela.querySelectorAll('tbody tr').forEach(function(tr){
+    var tds=tr.querySelectorAll('td');
+    tds.forEach(function(td,i){
+      if(labels[i])td.setAttribute('data-label',labels[i]);
+    });
+  });
+}
+function inicializarObserverTabelasResponsivas(){
+  document.querySelectorAll('table.tbl-responsive').forEach(function(tabela){
+    var tbody=tabela.querySelector('tbody');if(!tbody)return;
+    aplicarLabelsResponsivos(tabela);
+    new MutationObserver(function(){aplicarLabelsResponsivos(tabela);}).observe(tbody,{childList:true});
+  });
+}
+
 function updateBadge(){
   var low=prods.filter(function(p){return(p.at||0)<(p.mn||0);});
   var crit=prods.filter(function(p){return p.mx>0&&(p.at||0)/(p.mx)<0.15;});
@@ -1028,58 +1106,53 @@ function doLogin(){
   // Autentica no Firebase PRIMEIRO (sem precisar do banco carregado)
   errEl.style.display='none';
   btn.disabled=true;btn.textContent='Entrando...';
+  function entrarComPerfil(dbUser){
+    curUser=dbUser;
+    g('loginScreen').style.display='none';
+    g('loginScreen').style.visibility='hidden';
+    g('loginScreen').style.zIndex='-1';
+    g('appScreen').style.display='block';
+    g('appScreen').style.visibility='visible';
+    g('appScreen').style.zIndex='1';
+    g('sb-uname').textContent=dbUser.name;
+    var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
+    var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
+    g('sb-urole').innerHTML='<span class="'+(rc[dbUser.role]||'role-v')+'">'+(ri[dbUser.role]||dbUser.role)+'</span>';
+    g('nav-users').style.display=isG()?'flex':'none';
+    g('nav-logs').style.display=isG()?'flex':'none';
+    g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+    applyPermUI();rD();
+    btn.disabled=false;btn.textContent='Entrar no Sistema';
+  }
   auth.signInWithEmailAndPassword(map.email,pass)
     .then(function(){
-      // Autenticado! Agora carrega dados do banco
+      // Autenticado! Dispara os listeners de tempo real (produtos, empresas, movimentações
+      // etc. continuam chegando em segundo plano) e, em paralelo, busca o perfil do usuário
+      // (nome/cargo) com uma única leitura direta — sem ficar checando repetidamente a
+      // cada 300ms, que era o que causava o atraso perceptível na entrada.
       startDbListeners();
-      // Busca perfil do usuário no banco (aguarda carregar)
-      var tentativas=0;
-      function tentarEntrar(){
-        tentativas++;
-        var dbUser=users.find(function(u){return u.login===login;});
-        if(dbUser){
-          // Encontrou — entra no sistema
-          curUser=dbUser;
-          g('loginScreen').style.display='none';
-          g('loginScreen').style.visibility='hidden';
-          g('loginScreen').style.zIndex='-1';
-          g('appScreen').style.display='block';
-          g('appScreen').style.visibility='visible';
-          g('appScreen').style.zIndex='1';
-          g('sb-uname').textContent=dbUser.name;
-          var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
-          var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
-          g('sb-urole').innerHTML='<span class="'+(rc[dbUser.role]||'role-v')+'">'+(ri[dbUser.role]||dbUser.role)+'</span>';
-          g('nav-users').style.display=isG()?'flex':'none';
-          g('nav-logs').style.display=isG()?'flex':'none';
-          g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
-          applyPermUI();rD();
-          addLog('user','Login realizado','🔐');
-          btn.disabled=false;btn.textContent='Entrar no Sistema';
-        } else if(tentativas<20){
-          // Banco ainda carregando, tenta novamente em 300ms
-          setTimeout(tentarEntrar,300);
-        } else {
-          // Fallback: usa dados do LOGIN_MAP diretamente
-          curUser={id:'temp',login:login,name:map.name,role:map.role,status:map.status};
-          g('loginScreen').style.display='none';
-          g('loginScreen').style.visibility='hidden';
-          g('loginScreen').style.zIndex='-1';
-          g('appScreen').style.display='block';
-          g('appScreen').style.visibility='visible';
-          g('appScreen').style.zIndex='1';
-          g('sb-uname').textContent=map.name;
-          var rc={'Gerente':'role-g','Operador':'role-o','Visualizador':'role-v'};
-          var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
-          g('sb-urole').innerHTML='<span class="'+(rc[map.role]||'role-v')+'">'+(ri[map.role]||map.role)+'</span>';
-          g('nav-users').style.display=isG()?'flex':'none';
-          g('nav-logs').style.display=isG()?'flex':'none';
-          g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
-          applyPermUI();rD();
-          btn.disabled=false;btn.textContent='Entrar no Sistema';
-        }
-      }
-      setTimeout(tentarEntrar,400);
+      var jaEntrou=false;
+      db.ref('usuarios').once('value')
+        .then(function(snap){
+          if(jaEntrou)return;jaEntrou=true;
+          var d=snap.val();
+          var lista=d?Object.values(d).filter(function(u){return u&&u.login;}):[];
+          var dbUser=lista.find(function(u){return u.login===login;});
+          if(dbUser){addLog('user','Login realizado','🔐');entrarComPerfil(dbUser);}
+          else entrarComPerfil({id:'temp',login:login,name:map.name,role:map.role,status:map.status});
+        })
+        .catch(function(){
+          if(jaEntrou)return;jaEntrou=true;
+          // Falha ao ler o perfil (ex: instabilidade momentânea) — entra com os dados
+          // básicos já conhecidos do mapa de login, em vez de travar a tela de espera.
+          entrarComPerfil({id:'temp',login:login,name:map.name,role:map.role,status:map.status});
+        });
+      // Rede de segurança: se por algum motivo a leitura direta nunca responder
+      // (ex: conexão muito instável), libera o acesso com os dados básicos após 8s.
+      setTimeout(function(){
+        if(jaEntrou)return;jaEntrou=true;
+        entrarComPerfil({id:'temp',login:login,name:map.name,role:map.role,status:map.status});
+      },8000);
     })
     .catch(function(err){
       btn.disabled=false;btn.textContent='Entrar no Sistema';
@@ -1155,19 +1228,55 @@ document.querySelectorAll('.mbg').forEach(function(m){m.addEventListener('click'
 // DASHBOARD
 // ══════════════════════════════════════════════
 function rD(){
+  // Popula o select de Ano dinamicamente com os anos que têm movimentação ou histórico,
+  // sempre incluindo o ano atual mesmo que ainda não tenha nenhuma movimentação.
+  var anosSet={};
+  movs.forEach(function(m){if(m.dt)anosSet[m.dt.slice(0,4)]=true;});
+  historico.forEach(function(h){if(h.ano)anosSet[h.ano]=true;});
+  anosSet[new Date().getFullYear().toString()]=true;
+  var anosList=Object.keys(anosSet).sort(function(a,b){return b-a;});
+  var selAno=g('dash-ano');
+  if(selAno&&selAno.options.length!==anosList.length){
+    var anoAtualSel=selAno.value||new Date().getFullYear().toString();
+    selAno.innerHTML=anosList.map(function(a){return'<option value="'+a+'">'+a+'</option>';}).join('');
+    selAno.value=anosList.indexOf(anoAtualSel)>=0?anoAtualSel:anosList[0];
+  }
+  var filtroMes=g('dash-mes')?g('dash-mes').value:'';
+  var filtroAno=g('dash-ano')?g('dash-ano').value:'';
+  var temFiltro=!!(filtroMes||filtroAno);
+  // Conjunto de movimentações de SAÍDA dentro do período escolhido (usado para os KPIs
+  // de faturamento/desempenho do mês). Quando não há filtro, é todo o histórico — mantém
+  // o comportamento original do Dashboard.
+  var saidasPeriodo=movs.filter(function(m){
+    if(m.io!=='Saída')return false;
+    if(!m.dt)return!temFiltro;
+    if(filtroAno&&m.dt.slice(0,4)!==filtroAno)return false;
+    if(filtroMes&&m.dt.slice(5,7)!==filtroMes)return false;
+    return true;
+  });
+  var histPeriodo=historico.filter(function(h){
+    if(filtroAno&&h.ano!==filtroAno)return false;
+    if(filtroMes&&h.mes!==filtroMes)return false;
+    return true;
+  });
+  var lblPeriodo=g('dash-periodo-label');
+  if(lblPeriodo){
+    var mNomesLbl=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    lblPeriodo.textContent=temFiltro?('mostrando: '+(filtroMes?mNomesLbl[+filtroMes]+' de ':'ano ')+(filtroAno||'')):'mostrando todo o histórico registrado';
+  }
+
   var low=prods.filter(function(p){return(p.at||0)<(p.mn||0);});
   var crit=prods.filter(function(p){return p.mx>0&&(p.at||0)/(p.mx)<0.15;});
   var tv=prods.reduce(function(s,p){return s+(p.at||0)*(p.b||0);},0);
   var tvF=prods.reduce(function(s,p){return s+(p.at||0)*(p.f||0);},0);
-  var totalVendas=movs.filter(function(m){return m.io==='Saída';}).reduce(function(s,m){return s+(m.vt||0);},0);
-  var anoAtualKpi=new Date().getFullYear().toString();
-  var totalVendasHist=historico.filter(function(h){return h.ano===anoAtualKpi;}).reduce(function(s,h){return s+(h.vs||0);},0);
+  var totalVendas=saidasPeriodo.reduce(function(s,m){return s+(m.vt||0);},0);
+  var totalVendasHist=histPeriodo.reduce(function(s,h){return s+(h.vs||0);},0);
   totalVendas+=totalVendasHist;
 
   g('dash-kpis').innerHTML=
     '<div class="kpi '+(low.length>0?'r':'g')+(crit.length>0?' crit-kpi':'')+'"><div class="kl">Estoque Baixo</div><div class="kv" style="color:'+(low.length>0?'#ef4444':'#10b981')+'">'+(crit.length>0?'🚨 ':'')+low.length+'</div><div class="ks">'+(crit.length>0?crit.length+' crítico(s)':'tudo ok')+'</div><div class="ki">⚠️</div></div>'
     +'<div class="kpi w"><div class="kl">Valor em Estoque (Custo)</div><div class="kv" style="font-size:17px">'+brl(tv)+'</div><div class="ks">potencial: '+brl(tvF)+'</div><div class="ki">📦</div></div>'
-    +'<div class="kpi b"><div class="kl">Total de Vendas</div><div class="kv" style="font-size:17px">'+brl(totalVendas)+'</div><div class="ks">'+movs.filter(function(m){return m.io==='Saída';}).length+' movimentações</div><div class="ki">💰</div></div>'
+    +'<div class="kpi b"><div class="kl">'+(temFiltro?'Vendas no Período':'Total de Vendas')+'</div><div class="kv" style="font-size:17px">'+brl(totalVendas)+'</div><div class="ks">'+saidasPeriodo.length+' movimentações</div><div class="ki">💰</div></div>'
     +'<div class="kpi g"><div class="kl">Empresas Ativas</div><div class="kv">'+emps.length+'</div><div class="ks">'+emps.filter(function(c){return c.t==='DISTRIBUIDORA';}).length+' distribuidoras</div><div class="ki">🏢</div></div>';
 
   // Alerta crítico
@@ -1178,16 +1287,19 @@ function rD(){
     critHtml+='</div>';
   }
   // KPIs extras
-  var saidasMov=movs.filter(function(m){return m.io==='Saída';});
-  var ticketMedio=saidasMov.length?totalVendas/saidasMov.length:0;
+  var ticketMedio=saidasPeriodo.length?totalVendas/saidasPeriodo.length:0;
   var hoje=new Date().toISOString().slice(0,10);
-  var mesAtStr=hoje.slice(0,7);
-  var clientesMes=new Set(movs.filter(function(m){return m.io==='Saída'&&(m.dt||'').startsWith(mesAtStr);}).map(function(m){return m.eid;})).size;
+  var mesAtStr=temFiltro?(filtroAno||hoje.slice(0,4))+'-'+(filtroMes||hoje.slice(5,7)):hoje.slice(0,7);
+  var clientesMes=new Set(saidasPeriodo.filter(function(m){return temFiltro||(m.dt||'').startsWith(mesAtStr);}).map(function(m){return m.eid;})).size;
   var prodsSemEntrada=prods.filter(function(p){return!movs.some(function(m){return m.pid===p.id&&m.io==='Entrada';});}).length;
+  // Margem real do período: valor de fato cobrado nas vendas do período menos o custo
+  // base atual do produto — mesma lógica usada no relatório Financeiro.
+  var custoVendidoPeriodo=saidasPeriodo.reduce(function(s,m){var p=prods.find(function(pp){return pp.id===m.pid;});return s+Math.abs(m.q||0)*(p?p.b||0:0);},0);
+  var margemRealPeriodo=totalVendas-custoVendidoPeriodo;
   var extraKpis='<div class="kpi b" style="border-top:3px solid #3b82f6"><div class="kl">Ticket Médio</div><div class="kv" style="font-size:18px;color:#1e40af">'+brl(ticketMedio)+'</div><div class="ks">por movimentação</div><div class="ki">🎯</div></div>'
-    +'<div class="kpi g" style="border-top:3px solid #10b981"><div class="kl">Clientes Ativos (Mês)</div><div class="kv" style="color:#065f46">'+clientesMes+'</div><div class="ks">compraram este mês</div><div class="ki">🤝</div></div>'
+    +'<div class="kpi g" style="border-top:3px solid #10b981"><div class="kl">'+(temFiltro?'Clientes no Período':'Clientes Ativos (Mês)')+'</div><div class="kv" style="color:#065f46">'+clientesMes+'</div><div class="ks">'+(temFiltro?'compraram no período':'compraram este mês')+'</div><div class="ki">🤝</div></div>'
     +'<div class="kpi '+(prodsSemEntrada>0?'w':'g')+'"><div class="kl">Prod. s/ Reposição</div><div class="kv" style="font-size:18px;color:'+(prodsSemEntrada>0?'#92400e':'#065f46')+'">'+prodsSemEntrada+'</div><div class="ks">nunca tiveram entrada</div><div class="ki">📥</div></div>'
-    +'<div class="kpi g" style="border-top:3px solid #10b981"><div class="kl">Margem Potencial</div><div class="kv" style="font-size:18px;color:#059669">'+brl(prods.reduce(function(s,p){return s+(p.at||0)*((p.f||0)-(p.b||0));},0))+'</div><div class="ks">lucro se vender tudo</div><div class="ki">📈</div></div>';
+    +'<div class="kpi g" style="border-top:3px solid #10b981"><div class="kl">'+(temFiltro?'💰 Margem Real (período)':'Margem Potencial')+'</div><div class="kv" style="font-size:18px;color:#059669">'+(temFiltro?brl(margemRealPeriodo):brl(prods.reduce(function(s,p){return s+(p.at||0)*((p.f||0)-(p.b||0));},0)))+'</div><div class="ks">'+(temFiltro?'baseada no preço cobrado em cada venda':'lucro se vender tudo')+'</div><div class="ki">📈</div></div>';
   if(g('dash-extra-kpis'))g('dash-extra-kpis').innerHTML=extraKpis;
   g('dash-crit-alert').innerHTML=critHtml;
 
@@ -1265,18 +1377,16 @@ function rP(){
     var pct=Math.min(100,Math.round(((p.at||0)/(p.mx||1))*100));var s=st(p);var sc=s==='Baixo'?'#ef4444':s==='Alto'?'#3b82f6':'#10b981';
     var isCrit=p.mx>0&&(p.at||0)/(p.mx)<0.15;
     var actions=isOp()?'<div style="display:flex;gap:3px"><button class="ib blue" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">📋</button><button class="ib" onclick="opP(\''+p.id+'\')" title="Editar">✏️</button>'+(isG()?'<button class="ib red" onclick="dP(\''+p.id+'\')" title="Excluir">🗑️</button>':'')+'</div>':'<button class="ib blue" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">📋</button>';
-    rows+='<tr'+(isCrit?' style="background:#fff5f5!important"':'')+'><td style="color:#94a3b8;font-size:10px">'+esc(p.id||'')+'</td>'
-      +'<td style="font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(isCrit?'🚨 ':'')+esc(p.n||'')+'</td>'
+    var fotoHtml=p.foto?'<img src="'+esc(p.foto)+'" style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0;cursor:pointer" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">':'<div style="width:40px;height:40px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:16px;color:#cbd5e1">📦</div>';
+    rows+='<tr'+(isCrit?' style="background:#fff5f5!important"':'')+'><td>'+fotoHtml+'</td>'
+      +'<td style="font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(isCrit?'🚨 ':'')+esc(p.n||'')+'</td>'
       +'<td style="font-size:11px;color:#64748b">'+esc(String(p.ca||''))+'</td>'
       +'<td><span class="badge bgr" style="font-size:10px">'+esc(p.cat||'')+'</span></td>'
       +'<td style="width:100px"><div style="font-size:11px;color:#64748b">'+(p.at||0)+'/'+(p.mx||0)+'</div><div class="sb"><div class="sbf" style="width:'+pct+'%;background:'+sc+'"></div></div></td>'
       +'<td><span class="badge '+sb(p)+'">'+(isCrit?'🚨 ':'')+s+'</span></td>'
-      +'<td style="font-size:11px">'+brl(p.b)+'</td>'
-      +'<td style="font-size:11px">'+brl(p.di)+'</td>'
-      +'<td style="font-size:11px;font-weight:600;color:#059669">'+brl(p.f)+'</td>'
       +'<td>'+actions+'</td></tr>';
   });
-  g('ptbl').innerHTML=rows||'<tr class="er"><td colspan="10">Nenhum produto encontrado</td></tr>';
+  g('ptbl').innerHTML=rows||'<tr class="er"><td colspan="7">Nenhum produto encontrado</td></tr>';
 }
 
 // ══════════════════════════════════════════════
@@ -1350,35 +1460,115 @@ function exportRup(){
   });
   dlCSV('Ruptura_CMM_'+now+'.csv',rows);
 }
+var fotoPendenteBlob=null,fotoRemoverPendente=false;
 function opP(id){
   if(!isOp())return;ePid=id||null;g('mpt').textContent=id?'Editar Produto':'Novo Produto';
   var cs=g('pcat');cs.innerHTML=CATS.map(function(c){return'<option value="'+c+'">'+c+'</option>';}).join('');
+  fotoPendenteBlob=null;fotoRemoverPendente=false;g('pfoto-input').value='';
   if(id){var p=prods.find(function(x){return x.id===id;});if(!p)return;
     g('pn').value=p.n||'';g('pca').value=p.ca||'';cs.value=p.cat||'Luvas';
     g('pmn').value=p.mn||0;g('pmx').value=p.mx||0;g('pid2').value=p.id2||0;g('pat').value=p.at||0;
     g('pb').value=p.b||0;g('pdp').value=p.dp||0;g('pdi2').value=p.di||0;g('pf').value=p.f||0;
     g('plead').value=p.lead||'';
-  }else{g('pn').value='';g('pca').value='';g('pmn').value=10;g('pmx').value=50;g('pid2').value=30;g('pat').value=0;['pb','pdp','pdi2','pf'].forEach(function(x){g(x).value=0;});g('plead').value='';}
+    mostrarPreviewFoto(p.foto||null);
+  }else{g('pn').value='';g('pca').value='';g('pmn').value=10;g('pmx').value=50;g('pid2').value=30;g('pat').value=0;['pb','pdp','pdi2','pf'].forEach(function(x){g(x).value=0;});g('plead').value='';
+    mostrarPreviewFoto(null);
+  }
   g('mp').classList.add('open');
+}
+function mostrarPreviewFoto(url){
+  var img=g('pfoto-preview'),ph=g('pfoto-placeholder'),btnRem=g('pfoto-remover-btn');
+  if(url){img.src=url;img.style.display='block';ph.style.display='none';btnRem.style.display='';}
+  else{img.style.display='none';ph.style.display='';btnRem.style.display='none';}
+}
+// Comprime a imagem no navegador (máx. 400px no lado maior, JPEG ~75%) antes de
+// enviar ao Storage — mantém o carregamento das telas leve mesmo com 99 fotos.
+function comprimirImagem(file,maxLado,qualidade){
+  return new Promise(function(resolve,reject){
+    var img=new Image();
+    var reader=new FileReader();
+    reader.onload=function(e){img.src=e.target.result;};
+    reader.onerror=reject;
+    img.onload=function(){
+      var w=img.width,h=img.height;
+      if(w>h&&w>maxLado){h=Math.round(h*maxLado/w);w=maxLado;}
+      else if(h>=w&&h>maxLado){w=Math.round(w*maxLado/h);h=maxLado;}
+      var canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      canvas.toBlob(function(blob){blob?resolve(blob):reject(new Error('Falha ao comprimir imagem'));},'image/jpeg',qualidade);
+    };
+    img.onerror=function(){reject(new Error('Arquivo de imagem inválido'));};
+    reader.readAsDataURL(file);
+  });
+}
+function onFotoSelecionada(ev){
+  var file=ev.target.files&&ev.target.files[0];if(!file)return;
+  if(!file.type.startsWith('image/')){alert('Selecione um arquivo de imagem.');return;}
+  g('pfoto-status').textContent='Comprimindo imagem...';
+  comprimirImagem(file,400,0.75)
+    .then(function(blob){
+      fotoPendenteBlob=blob;fotoRemoverPendente=false;
+      var url=URL.createObjectURL(blob);
+      mostrarPreviewFoto(url);
+      g('pfoto-status').textContent='Pronta para salvar ('+(blob.size/1024).toFixed(0)+' KB)';
+    })
+    .catch(function(err){
+      g('pfoto-status').textContent='Erro ao processar imagem.';
+      alert('Não foi possível processar essa imagem:\n'+(err.message||err));
+    });
+}
+function removerFoto(){
+  fotoPendenteBlob=null;fotoRemoverPendente=true;
+  mostrarPreviewFoto(null);
+  g('pfoto-status').textContent='Foto será removida ao salvar.';
 }
 function svP(){
   var nome=g('pn').value.trim();if(!nome){alert('Informe o nome');return;}
   var id=ePid||uid();
   var leadVal=g('plead').value.trim();
+  var pExistente=prods.find(function(x){return x.id===id;});
   var obj={id:id,n:nome,ca:+g('pca').value||0,cat:g('pcat').value,mn:+g('pmn').value,mx:+g('pmx').value,id2:+g('pid2').value,at:+g('pat').value,b:+g('pb').value,dp:+g('pdp').value,di:+g('pdi2').value,f:+g('pf').value,lead:leadVal?+leadVal:0};
   var btn=g('mp').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
-  db.ref('epis/'+id).set(obj)
-    .then(function(){
-      addLog('prod',(ePid?'Produto editado: ':'Produto criado: ')+nome,'📦');
-      var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
-      cl('mp');
-    })
-    .catch(function(err){
-      alert('Erro ao salvar produto: '+(err.message||err));
-      var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
-    });
+  function finalizarSalvamento(fotoUrl){
+    if(fotoUrl)obj.foto=fotoUrl;
+    db.ref('epis/'+id).set(obj)
+      .then(function(){
+        addLog('prod',(ePid?'Produto editado: ':'Produto criado: ')+nome,'📦');
+        var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
+        cl('mp');
+      })
+      .catch(function(err){
+        alert('Erro ao salvar produto: '+(err.message||err));
+        var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
+      });
+  }
+  // Se uma nova foto foi escolhida, envia ao Storage primeiro e usa a URL resultante.
+  if(fotoPendenteBlob){
+    g('pfoto-status').textContent='Enviando foto...';
+    var ref=storage.ref('produtos/'+id+'.jpg');
+    ref.put(fotoPendenteBlob)
+      .then(function(){return ref.getDownloadURL();})
+      .then(function(url){finalizarSalvamento(url);})
+      .catch(function(err){
+        alert('Erro ao enviar a foto, o resto dos dados não foi salvo:\n'+(err.message||err));
+        var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
+      });
+  }else if(fotoRemoverPendente){
+    var refRem=storage.ref('produtos/'+id+'.jpg');
+    refRem.delete().catch(function(){}) // ignora erro se já não existir
+      .then(function(){obj.foto=null;finalizarSalvamento(null);});
+  }else{
+    if(pExistente&&pExistente.foto)obj.foto=pExistente.foto; // mantém foto já existente
+    finalizarSalvamento(null);
+  }
 }
-function dP(id){if(!isG())return;var p=prods.find(function(x){return x.id===id;});if(!p)return;if(confirm('Remover produto "'+p.n+'"?')){db.ref('epis/'+id).remove();addLog('prod','Produto removido: '+p.n,'🗑️');}}
+function dP(id){
+  if(!isG())return;var p=prods.find(function(x){return x.id===id;});if(!p)return;
+  if(confirm('Remover produto "'+p.n+'"?')){
+    if(p.foto)storage.ref('produtos/'+id+'.jpg').delete().catch(function(){});
+    db.ref('epis/'+id).remove();addLog('prod','Produto removido: '+p.n,'🗑️');
+  }
+}
 
 // FICHA DO PRODUTO
 function opFicha(pid){
@@ -1392,7 +1582,8 @@ function rFicha(){
   var abcMapa=classificarABC().mapa;
   var classeP=abcMapa[pid]?abcMapa[pid].classe:null;
   var classeTag=classeP?'<span class="badge '+CLASSE_BADGE[classeP]+'" style="color:'+CLASSE_COR[classeP]+'" title="Classe '+classeP+' de valor de saída (12 meses)">Classe '+classeP+'</span>':'';
-  g('ficha-header').innerHTML='<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><div><div style="font-size:13px;font-weight:600">'+esc(p.n)+' '+classeTag+'</div><div style="font-size:11px;color:#64748b;margin-top:3px">CA: '+esc(String(p.ca||''))+' · '+esc(p.cat||'')+'</div></div><div style="margin-left:auto;display:flex;gap:12px;flex-wrap:wrap"><div style="text-align:center"><div style="font-size:10px;color:#64748b">Atual</div><div style="font-size:20px;font-weight:700;color:'+sc+'">'+(p.at||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Mín</div><div style="font-size:20px;font-weight:700">'+(p.mn||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Máx</div><div style="font-size:20px;font-weight:700">'+(p.mx||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Situação</div><span class="badge '+sb(p)+'">'+s+'</span></div></div></div>';
+  var fotoFicha=p.foto?'<img src="'+esc(p.foto)+'" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid #e2e8f0">':'<div style="width:56px;height:56px;border-radius:10px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:22px;color:#cbd5e1">📦</div>';
+  g('ficha-header').innerHTML='<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center">'+fotoFicha+'<div><div style="font-size:13px;font-weight:600">'+esc(p.n)+' '+classeTag+'</div><div style="font-size:11px;color:#64748b;margin-top:3px">CA: '+esc(String(p.ca||''))+' · '+esc(p.cat||'')+'</div></div><div style="margin-left:auto;display:flex;gap:12px;flex-wrap:wrap"><div style="text-align:center"><div style="font-size:10px;color:#64748b">Atual</div><div style="font-size:20px;font-weight:700;color:'+sc+'">'+(p.at||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Mín</div><div style="font-size:20px;font-weight:700">'+(p.mn||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Máx</div><div style="font-size:20px;font-weight:700">'+(p.mx||0)+'</div></div><div style="text-align:center"><div style="font-size:10px;color:#64748b">Situação</div><span class="badge '+sb(p)+'">'+s+'</span></div></div></div>';
   var ano=g('ficha-ano').value,mes=g('ficha-mes').value;
   var fMovs=movs.filter(function(m){var ok=m.pid===pid;if(ano)ok=ok&&(m.dt||'').startsWith(ano);if(mes)ok=ok&&(m.dt||'').slice(5,7)===mes;return ok;}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});
   var totEnt=fMovs.filter(function(m){return m.io==='Entrada';}).reduce(function(s,m){return s+Math.abs(m.q||0);},0);
@@ -1461,10 +1652,13 @@ function rE(){
   list.forEach(function(c){
     var cmovs=movs.filter(function(m){return m.eid===c.id&&m.io==='Saída';});
     var vol=cmovs.reduce(function(s,m){return s+(m.vt||0);},0);
-    rows+='<tr><td style="color:#94a3b8;font-size:10px">'+esc(c.id||'')+'</td><td style="font-weight:500">'+esc(c.n||'')+'</td><td><span class="badge '+tb(c.t||'')+'">'+esc(c.t||'')+'</span></td><td style="color:#64748b;font-size:11px">'+esc(c.dept||'')+'</td><td style="text-align:center;font-size:11px">'+cmovs.length+'</td><td style="font-size:11px;color:#059669;font-weight:500">'+brl(vol)+'</td>'
+    var cmovsOrd=cmovs.slice().sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});
+    var dias=cmovsOrd.length?Math.floor((new Date()-new Date(cmovsOrd[0].dt))/86400000):null;
+    var diasTxt=dias===null?'<span style="color:#94a3b8">— nunca comprou</span>':(dias>60?'<span style="color:#ef4444;font-weight:600">'+dias+' dias</span>':dias>30?'<span style="color:#f59e0b">'+dias+' dias</span>':'<span style="color:#10b981">'+dias+' dias</span>');
+    rows+='<tr><td style="font-weight:500">'+esc(c.n||'')+'</td><td><span class="badge '+tb(c.t||'')+'">'+esc(c.t||'')+'</span></td><td style="text-align:center;font-size:11px">'+cmovs.length+'</td><td style="font-size:11px;color:#059669;font-weight:500">'+brl(vol)+'</td><td style="font-size:11px">'+diasTxt+'</td>'
       +'<td><div style="display:flex;gap:3px">'+(cmovs.length>0?'<button class="ib blue" onclick="opCliente(\''+c.id+'\')" title="Histórico">📋</button>':'')+'<button class="ib" onclick="opEEdit(\''+c.id+'\')">✏️</button>'+(isG()?'<button class="ib red" onclick="dE(\''+c.id+'\')">🗑️</button>':'')+'</div></td></tr>';
   });
-  g('etbl').innerHTML=rows||'<tr class="er"><td colspan="7">Nenhuma empresa</td></tr>';
+  g('etbl').innerHTML=rows||'<tr class="er"><td colspan="6">Nenhuma empresa</td></tr>';
 }
 function opE(){if(!isOp())return;eEid=null;g('me-title').textContent='Nova Empresa';g('en').value='';g('eti2').value='CONSUMIDOR FINAL';g('ed').value='EPI';g('me').classList.add('open');}
 function opEEdit(id){if(!isOp())return;eEid=id;var c=emps.find(function(x){return x.id===id;});if(!c){alert('Empresa não encontrada. Recarregue a página e tente novamente.');return;}g('me-title').textContent='Editar Empresa';g('en').value=c.n||'';g('eti2').value=c.t||'CONSUMIDOR FINAL';g('ed').value=c.dept||'EPI';g('me').classList.add('open');}
@@ -1952,8 +2146,8 @@ function dlCSV(filename,rows){
 }
 function exportCSV(type){
   var now=new Date().toISOString().slice(0,10);
-  if(type==='products'){var rows=[['ID','Produto','CA','Cat.','Mín','Máx','Ideal','Atual','Situação','P.Base','P.Diret.','P.Dist.','P.Final']];prods.forEach(function(p){rows.push([p.id,p.n,p.ca,p.cat,p.mn,p.mx,p.id2,p.at,st(p),p.b,p.dp,p.di,p.f]);});dlCSV('Produtos_'+now+'.csv',rows);}
-  else if(type==='companies'){var rows=[['ID','Empresa','Tipo','Departamento']];emps.forEach(function(c){rows.push([c.id,c.n,c.t,c.dept]);});dlCSV('Empresas_'+now+'.csv',rows);}
+  if(type==='products'){var rows=[['Produto','CA','Cat.','Mín','Máx','Ideal','Atual','Situação']];prods.forEach(function(p){rows.push([p.n,p.ca,p.cat,p.mn,p.mx,p.id2,p.at,st(p)]);});dlCSV('Produtos_'+now+'.csv',rows);}
+  else if(type==='companies'){var rows=[['Empresa','Tipo']];emps.forEach(function(c){rows.push([c.n,c.t]);});dlCSV('Empresas_'+now+'.csv',rows);}
   else if(type==='movements'){var rows=[['ID','Data','IO','Operação','Produto','CA','Empresa','Qty','Vl.Unit.','Vl.Total','NF','Emitente','Usuário','Obs']];movs.slice().sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;}).forEach(function(m){rows.push([m.id,m.dt,m.io,m.desc,m.pn,m.ca,m.en,m.q,m.vu,m.vt,m.nf||'',m.nfe||'',m.u,m.obs||'']);});dlCSV('Movimentacoes_'+now+'.csv',rows);}
   else if(type==='prices'){var rows=[['Produto','CA','P.Base','P.Diret.','P.Dist.','P.Final','Margem%']];prods.forEach(function(p){var mg=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;rows.push([p.n,p.ca,p.b,p.dp,p.di,p.f,mg+'%']);});dlCSV('Precos_'+now+'.csv',rows);}
 }
@@ -2001,6 +2195,7 @@ auth.onAuthStateChanged(function(user){
   // Se autenticado (ex: refresh de página), setupListeners cuida do resto
 });
 setupListeners();
+inicializarObserverTabelasResponsivas();
 
 // ── DEEP LINK: ?tab=X navega direto ─────────────────────────────
 (function(){
