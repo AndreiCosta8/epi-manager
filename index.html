@@ -3,13 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- v1.15 (02/07/2026): Foto do produto migrada de Firebase Storage (base64→Realtime Database).
+     Motivo: projetos novos no plano Spark perderam acesso ao Cloud Storage a partir de 03/02/2026
+     (exige upgrade para Blaze). Fotos já são comprimidas para ~20-30KB antes de salvar, então
+     guardá-las como texto base64 dentro do próprio nó do produto no RTDB é viável e evita a
+     dependência do Storage/Blaze. Ver Segundo Cérebro > Playbook 7 para detalhes da decisão. -->
 <title>EPI Manager – Loja Parauapebas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -829,14 +833,12 @@ const firebaseConfig={
   authDomain:"epi-parauapebas.firebaseapp.com",
   databaseURL:"https://epi-parauapebas-default-rtdb.firebaseio.com",
   projectId:"epi-parauapebas",
-  storageBucket:"epi-parauapebas.firebasestorage.app",
   messagingSenderId:"1046950789657",
   appId:"1:1046950789657:web:e4d51d940d2d857b3fa088"
 };
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
 const auth=firebase.auth();
-const storage=firebase.storage();
 
 // ══════════════════════════════════════════════
 // ESTADO
@@ -1460,11 +1462,11 @@ function exportRup(){
   });
   dlCSV('Ruptura_CMM_'+now+'.csv',rows);
 }
-var fotoPendenteBlob=null,fotoRemoverPendente=false;
+var fotoPendenteBase64=null,fotoRemoverPendente=false;
 function opP(id){
   if(!isOp())return;ePid=id||null;g('mpt').textContent=id?'Editar Produto':'Novo Produto';
   var cs=g('pcat');cs.innerHTML=CATS.map(function(c){return'<option value="'+c+'">'+c+'</option>';}).join('');
-  fotoPendenteBlob=null;fotoRemoverPendente=false;g('pfoto-input').value='';
+  fotoPendenteBase64=null;fotoRemoverPendente=false;g('pfoto-input').value='';
   if(id){var p=prods.find(function(x){return x.id===id;});if(!p)return;
     g('pn').value=p.n||'';g('pca').value=p.ca||'';cs.value=p.cat||'Luvas';
     g('pmn').value=p.mn||0;g('pmx').value=p.mx||0;g('pid2').value=p.id2||0;g('pat').value=p.at||0;
@@ -1501,16 +1503,28 @@ function comprimirImagem(file,maxLado,qualidade){
     reader.readAsDataURL(file);
   });
 }
+// Converte o blob já comprimido em texto base64 (data URL), pronto para ser
+// salvo direto num campo do Realtime Database — sem depender do Storage.
+function blobParaBase64(blob){
+  return new Promise(function(resolve,reject){
+    var reader=new FileReader();
+    reader.onload=function(){resolve(reader.result);};
+    reader.onerror=function(){reject(new Error('Falha ao converter imagem'));};
+    reader.readAsDataURL(blob);
+  });
+}
 function onFotoSelecionada(ev){
   var file=ev.target.files&&ev.target.files[0];if(!file)return;
   if(!file.type.startsWith('image/')){alert('Selecione um arquivo de imagem.');return;}
   g('pfoto-status').textContent='Comprimindo imagem...';
   comprimirImagem(file,400,0.75)
     .then(function(blob){
-      fotoPendenteBlob=blob;fotoRemoverPendente=false;
-      var url=URL.createObjectURL(blob);
-      mostrarPreviewFoto(url);
-      g('pfoto-status').textContent='Pronta para salvar ('+(blob.size/1024).toFixed(0)+' KB)';
+      return blobParaBase64(blob).then(function(base64){return {blob:blob,base64:base64};});
+    })
+    .then(function(r){
+      fotoPendenteBase64=r.base64;fotoRemoverPendente=false;
+      mostrarPreviewFoto(r.base64);
+      g('pfoto-status').textContent='Pronta para salvar ('+(r.blob.size/1024).toFixed(0)+' KB)';
     })
     .catch(function(err){
       g('pfoto-status').textContent='Erro ao processar imagem.';
@@ -1518,7 +1532,7 @@ function onFotoSelecionada(ev){
     });
 }
 function removerFoto(){
-  fotoPendenteBlob=null;fotoRemoverPendente=true;
+  fotoPendenteBase64=null;fotoRemoverPendente=true;
   mostrarPreviewFoto(null);
   g('pfoto-status').textContent='Foto será removida ao salvar.';
 }
@@ -1529,43 +1543,27 @@ function svP(){
   var pExistente=prods.find(function(x){return x.id===id;});
   var obj={id:id,n:nome,ca:+g('pca').value||0,cat:g('pcat').value,mn:+g('pmn').value,mx:+g('pmx').value,id2:+g('pid2').value,at:+g('pat').value,b:+g('pb').value,dp:+g('pdp').value,di:+g('pdi2').value,f:+g('pf').value,lead:leadVal?+leadVal:0};
   var btn=g('mp').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
-  function finalizarSalvamento(fotoUrl){
-    if(fotoUrl)obj.foto=fotoUrl;
-    db.ref('epis/'+id).set(obj)
-      .then(function(){
-        addLog('prod',(ePid?'Produto editado: ':'Produto criado: ')+nome,'📦');
-        var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
-        cl('mp');
-      })
-      .catch(function(err){
-        alert('Erro ao salvar produto: '+(err.message||err));
-        var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
-      });
-  }
-  // Se uma nova foto foi escolhida, envia ao Storage primeiro e usa a URL resultante.
-  if(fotoPendenteBlob){
-    g('pfoto-status').textContent='Enviando foto...';
-    var ref=storage.ref('produtos/'+id+'.jpg');
-    ref.put(fotoPendenteBlob)
-      .then(function(){return ref.getDownloadURL();})
-      .then(function(url){finalizarSalvamento(url);})
-      .catch(function(err){
-        alert('Erro ao enviar a foto, o resto dos dados não foi salvo:\n'+(err.message||err));
-        var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
-      });
-  }else if(fotoRemoverPendente){
-    var refRem=storage.ref('produtos/'+id+'.jpg');
-    refRem.delete().catch(function(){}) // ignora erro se já não existir
-      .then(function(){obj.foto=null;finalizarSalvamento(null);});
-  }else{
-    if(pExistente&&pExistente.foto)obj.foto=pExistente.foto; // mantém foto já existente
-    finalizarSalvamento(null);
-  }
+  // Foto agora é gravada como texto base64 direto no próprio nó do produto no
+  // Realtime Database — sem etapa de upload separada, sem depender do Storage/Blaze.
+  if(fotoPendenteBase64){obj.foto=fotoPendenteBase64;}
+  else if(fotoRemoverPendente){obj.foto=null;}
+  else if(pExistente&&pExistente.foto){obj.foto=pExistente.foto;} // mantém foto já existente
+  db.ref('epis/'+id).set(obj)
+    .then(function(){
+      addLog('prod',(ePid?'Produto editado: ':'Produto criado: ')+nome,'📦');
+      var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
+      cl('mp');
+    })
+    .catch(function(err){
+      alert('Erro ao salvar produto: '+(err.message||err));
+      var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
+    });
 }
 function dP(id){
   if(!isG())return;var p=prods.find(function(x){return x.id===id;});if(!p)return;
   if(confirm('Remover produto "'+p.n+'"?')){
-    if(p.foto)storage.ref('produtos/'+id+'.jpg').delete().catch(function(){});
+    // Foto vive dentro do próprio nó do produto no RTDB agora, então remove()
+    // já apaga tudo junto — não há mais um arquivo separado no Storage para limpar.
     db.ref('epis/'+id).remove();addLog('prod','Produto removido: '+p.n,'🗑️');
   }
 }
