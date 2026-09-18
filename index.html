@@ -8,6 +8,13 @@
      (exige upgrade para Blaze). Fotos já são comprimidas para ~20-30KB antes de salvar, então
      guardá-las como texto base64 dentro do próprio nó do produto no RTDB é viável e evita a
      dependência do Storage/Blaze. Ver Segundo Cérebro > Playbook 7 para detalhes da decisão. -->
+<!-- v1.16 (18/09/2026): Integridade de estoque + critérios unificados + datas no fuso local.
+     1) Estoque: saída/descarte/ajuste negativo não passam do saldo (validado no servidor, dentro da transação);
+        movimentação e saldo são gravados "tudo ou nada" (se um passo falha, o anterior é desfeito);
+        confirmação de recebimento não pode ser feita duas vezes; quantidade precisa ser > 0.
+     2) "Baixo" e "Crítico" agora têm UMA definição só (baseada no Estoque Mínimo) em menu, dashboard,
+        filtro, sino e relatórios.
+     3) Datas usam o fuso local (antes, depois das 21h em Parauapebas o sistema gravava o dia seguinte). -->
 <title>EPI Manager – Loja Parauapebas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -378,7 +385,7 @@ select:focus,input:focus{border-color:#10b981}
   <div class="fr">
     <div class="sr"><span class="sri">🔍</span><input type="text" id="ps" placeholder="Buscar..." oninput="rP()"></div>
     <select id="pc" onchange="rP()"><option value="">Todas categorias</option></select>
-    <select id="pfilt" onchange="rP()"><option value="">Todas situações</option><option value="Baixo">Estoque Baixo</option><option value="Adequado">Adequado</option><option value="Alto">Alto</option></select>
+    <select id="pfilt" onchange="rP()"><option value="">Todas situações</option><option value="Baixo">Estoque Baixo</option><option value="Crítico">🚨 Estoque Crítico</option><option value="Adequado">Adequado</option><option value="Alto">Alto</option></select>
     <div style="flex:1"></div>
     <button class="btn bexp bsm" onclick="exportCSV('products')">⬇ CSV</button>
     <button class="btn bp2 bsm" id="btn-new-prod" onclick="opP()">➕ Novo</button>
@@ -874,11 +881,29 @@ function g(id){return document.getElementById(id);}
 function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
 function isG(){return curUser&&curUser.role==='Gerente';}
 function isOp(){return curUser&&(curUser.role==='Gerente'||curUser.role==='Operador');}
-function st(p){var r=(p.at||0)/(p.mx||1);return r<0.3?'Baixo':r<0.6?'Adequado':'Alto';}
+// CRITÉRIO ÚNICO de nível de estoque (usado em menu, dashboard, filtro, sino e relatórios):
+//  • Baixo   = zerado OU abaixo do Estoque Mínimo cadastrado
+//  • Crítico = zerado OU abaixo de 50% do Estoque Mínimo   (sempre é um subconjunto de "Baixo")
+//  • Alto    = a partir de 60% do Estoque Máximo;  Adequado = o que sobra
+// (A tela Ruptura/CMM é outra análise — cobertura em dias pelo consumo — e continua com seu próprio status.)
+function isBaixo(p){var at=p.at||0;return at<=0||at<(p.mn||0);}
+function isCritico(p){var at=p.at||0,mn=p.mn||0;return at<=0||(mn>0&&at<mn*0.5);}
+function st(p){if(isBaixo(p))return'Baixo';var mx=p.mx||0;return(mx>0&&(p.at||0)>=mx*0.6)?'Alto':'Adequado';}
 function sb(p){var s=st(p);return s==='Baixo'?'br':s==='Alto'?'bb':'bg';}
 function tb(t){return t==='BALCAO'?'bp':t==='DISTRIBUIDORA'?'bb':'bg';}
 function fmtDt(iso){return iso?iso.split('-').reverse().join('/'):'—';}
 function nowISO(){return new Date().toISOString();}
+// Datas "AAAA-MM-DD" no fuso LOCAL. toISOString() usa UTC e, em Parauapebas (UTC-3),
+// devolve o dia seguinte depois das 21h — por isso nunca usar toISOString().slice(0,10) para datas de negócio.
+function dataLocalISO(d){var m=d.getMonth()+1,dd=d.getDate();return d.getFullYear()+'-'+(m<10?'0':'')+m+'-'+(dd<10?'0':'')+dd;}
+function hojeLocalISO(){return dataLocalISO(new Date());}
+// Dias corridos entre uma data AAAA-MM-DD e hoje (ambos no calendário local).
+function diasDesde(iso){
+  if(!iso)return null;
+  var p=String(iso).slice(0,10).split('-');var d0=new Date(+p[0],+p[1]-1,+p[2]);if(isNaN(d0))return null;
+  var h=new Date();h=new Date(h.getFullYear(),h.getMonth(),h.getDate());
+  return Math.round((h-d0)/86400000);
+}
 function updMonths(){g('mmes').value='';}
 
 // ══════════════════════════════════════════════
@@ -952,7 +977,7 @@ function cmmInfo(p,janela,leadDiasParam){
   var cobMeses=cmm>0?at/cmm:Infinity;
   var diasRest=cmm>0?Math.round(cobMeses*30):Infinity;
   var dataRuptura=null;
-  if(cmm>0&&at>0){var dr=new Date();dr.setDate(dr.getDate()+diasRest);dataRuptura=dr.toISOString().slice(0,10);}
+  if(cmm>0&&at>0){var dr=new Date();dr.setDate(dr.getDate()+diasRest);dataRuptura=dataLocalISO(dr);}
   var alvoMeses=leadDias/30+1;                                  // cobrir reposição + 1 mês de segurança
   // Sugestão de compra já considera o que está em trânsito, para não duplicar pedido.
   var sugestao=cmm>0?Math.max(0,Math.ceil(cmm*alvoMeses)-atProjetado):0;
@@ -1078,8 +1103,8 @@ function inicializarObserverTabelasResponsivas(){
 }
 
 function updateBadge(){
-  var low=prods.filter(function(p){return(p.at||0)<(p.mn||0);});
-  var crit=prods.filter(function(p){return p.mx>0&&(p.at||0)/(p.mx)<0.15;});
+  var low=prods.filter(isBaixo);
+  var crit=prods.filter(isCritico);
   var lb=g('lbadge'),lc=g('lchip'),cc=g('crit-chip');
   if(lb){lb.style.display=low.length>0?'':'none';lb.textContent=low.length;}
   if(lc){lc.style.display=low.length>0?'':'none';lc.textContent='⚠️ '+low.length+' baixo';}
@@ -1267,8 +1292,8 @@ function rD(){
     lblPeriodo.textContent=temFiltro?('mostrando: '+(filtroMes?mNomesLbl[+filtroMes]+' de ':'ano ')+(filtroAno||'')):'mostrando todo o histórico registrado';
   }
 
-  var low=prods.filter(function(p){return(p.at||0)<(p.mn||0);});
-  var crit=prods.filter(function(p){return p.mx>0&&(p.at||0)/(p.mx)<0.15;});
+  var low=prods.filter(isBaixo);
+  var crit=prods.filter(isCritico);
   var tv=prods.reduce(function(s,p){return s+(p.at||0)*(p.b||0);},0);
   var tvF=prods.reduce(function(s,p){return s+(p.at||0)*(p.f||0);},0);
   var totalVendas=saidasPeriodo.reduce(function(s,m){return s+(m.vt||0);},0);
@@ -1284,13 +1309,13 @@ function rD(){
   // Alerta crítico
   var critHtml='';
   if(crit.length>0){
-    critHtml='<div class="crit-alert"><h4>🚨 '+crit.length+' produto(s) com estoque CRÍTICO (abaixo de 15% da capacidade)</h4>';
-    crit.forEach(function(p){var pct=Math.round(((p.at||0)/(p.mx||1))*100);critHtml+='<div class="crit-item"><span style="font-weight:500">'+esc(p.n)+'</span><div style="display:flex;align-items:center;gap:8px"><span style="color:#ef4444;font-weight:700">'+p.at+'/'+p.mx+' ('+pct+'%)</span><button class="btn bd2 bsm" onclick="opFicha(\''+p.id+'\')">Ver Ficha</button></div></div>';});
+    critHtml='<div class="crit-alert"><h4>🚨 '+crit.length+' produto(s) com estoque CRÍTICO (abaixo de 50% do estoque mínimo)</h4>';
+    crit.forEach(function(p){var pct=Math.round(((p.at||0)/(p.mx||1))*100);critHtml+='<div class="crit-item"><span style="font-weight:500">'+esc(p.n)+'</span><div style="display:flex;align-items:center;gap:8px"><span style="color:#ef4444;font-weight:700">'+p.at+' un · mín. '+(p.mn||0)+'</span><button class="btn bd2 bsm" onclick="opFicha(\''+p.id+'\')">Ver Ficha</button></div></div>';});
     critHtml+='</div>';
   }
   // KPIs extras
   var ticketMedio=saidasPeriodo.length?totalVendas/saidasPeriodo.length:0;
-  var hoje=new Date().toISOString().slice(0,10);
+  var hoje=hojeLocalISO();
   var mesAtStr=temFiltro?(filtroAno||hoje.slice(0,4))+'-'+(filtroMes||hoje.slice(5,7)):hoje.slice(0,7);
   var clientesMes=new Set(saidasPeriodo.filter(function(m){return temFiltro||(m.dt||'').startsWith(mesAtStr);}).map(function(m){return m.eid;})).size;
   var prodsSemEntrada=prods.filter(function(p){return!movs.some(function(m){return m.pid===p.id&&m.io==='Entrada';});}).length;
@@ -1373,11 +1398,11 @@ function rD(){
 // ══════════════════════════════════════════════
 function rP(){
   var q=(g('ps').value||'').toLowerCase(),cat=g('pc').value,filt=g('pfilt').value;
-  var list=prods.filter(function(p){return(!cat||p.cat===cat)&&(!filt||st(p)===filt)&&((p.n||'').toLowerCase().includes(q)||String(p.ca||'').includes(q));}).sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');});
+  var list=prods.filter(function(p){return(!cat||p.cat===cat)&&(!filt||(filt==='Crítico'?isCritico(p):st(p)===filt))&&((p.n||'').toLowerCase().includes(q)||String(p.ca||'').includes(q));}).sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');});
   var rows='';
   list.forEach(function(p){
     var pct=Math.min(100,Math.round(((p.at||0)/(p.mx||1))*100));var s=st(p);var sc=s==='Baixo'?'#ef4444':s==='Alto'?'#3b82f6':'#10b981';
-    var isCrit=p.mx>0&&(p.at||0)/(p.mx)<0.15;
+    var isCrit=isCritico(p);
     var actions=isOp()?'<div style="display:flex;gap:3px"><button class="ib blue" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">📋</button><button class="ib" onclick="opP(\''+p.id+'\')" title="Editar">✏️</button>'+(isG()?'<button class="ib red" onclick="dP(\''+p.id+'\')" title="Excluir">🗑️</button>':'')+'</div>':'<button class="ib blue" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">📋</button>';
     var fotoHtml=p.foto?'<img src="'+esc(p.foto)+'" style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid #e2e8f0;cursor:pointer" onclick="opFicha(\''+p.id+'\')" title="Ver Ficha">':'<div style="width:40px;height:40px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:16px;color:#cbd5e1">📦</div>';
     rows+='<tr'+(isCrit?' style="background:#fff5f5!important"':'')+'><td>'+fotoHtml+'</td>'
@@ -1453,7 +1478,7 @@ function rRup(){
 }
 
 function exportRup(){
-  var now=new Date().toISOString().slice(0,10);
+  var now=hojeLocalISO();
   var lista=prods.map(function(p){return{p:p,info:cmmInfo(p,rupJanela,rupLead)};});
   lista.sort(function(a,b){var oa=RUP_ORDEM[a.info.status],ob=RUP_ORDEM[b.info.status];return oa!==ob?oa-ob:0;});
   var rows=[['Produto','CA','Categoria','Estoque','Em Transito','Estoque+Transito','CMM (un/mes)','Meses considerados','Cobertura (meses)','Dias restantes','Previsao ruptura','Ponto ressup.','Sugestao compra','Status','Janela(meses)','Lead time usado(dias)','Alerta outlier']];
@@ -1636,7 +1661,7 @@ function exportFicha(){
   var fMovs=movs.filter(function(m){return m.pid===pid;}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});
   var rows=[['Data','Tipo','Operação','Empresa','Qty','Vl.Unit.','Vl.Total','NF','Usuário']];
   fMovs.forEach(function(m){rows.push([m.dt,m.io,m.desc,m.en,m.q,m.vu,m.vt,m.nf||'',m.u]);});
-  dlCSV('Ficha_'+p.n.replace(/[^a-zA-Z0-9]/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.csv',rows);
+  dlCSV('Ficha_'+p.n.replace(/[^a-zA-Z0-9]/g,'_')+'_'+hojeLocalISO()+'.csv',rows);
 }
 
 // ══════════════════════════════════════════════
@@ -1651,7 +1676,7 @@ function rE(){
     var cmovs=movs.filter(function(m){return m.eid===c.id&&m.io==='Saída';});
     var vol=cmovs.reduce(function(s,m){return s+(m.vt||0);},0);
     var cmovsOrd=cmovs.slice().sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});
-    var dias=cmovsOrd.length?Math.floor((new Date()-new Date(cmovsOrd[0].dt))/86400000):null;
+    var dias=cmovsOrd.length?diasDesde(cmovsOrd[0].dt):null;
     var diasTxt=dias===null?'<span style="color:#94a3b8">— nunca comprou</span>':(dias>60?'<span style="color:#ef4444;font-weight:600">'+dias+' dias</span>':dias>30?'<span style="color:#f59e0b">'+dias+' dias</span>':'<span style="color:#10b981">'+dias+' dias</span>');
     rows+='<tr><td style="font-weight:500">'+esc(c.n||'')+'</td><td><span class="badge '+tb(c.t||'')+'">'+esc(c.t||'')+'</span></td><td style="text-align:center;font-size:11px">'+cmovs.length+'</td><td style="font-size:11px;color:#059669;font-weight:500">'+brl(vol)+'</td><td style="font-size:11px">'+diasTxt+'</td>'
       +'<td><div style="display:flex;gap:3px">'+(cmovs.length>0?'<button class="ib blue" onclick="opCliente(\''+c.id+'\')" title="Histórico">📋</button>':'')+'<button class="ib" onclick="opEEdit(\''+c.id+'\')">✏️</button>'+(isG()?'<button class="ib red" onclick="dE(\''+c.id+'\')">🗑️</button>':'')+'</div></td></tr>';
@@ -1787,7 +1812,7 @@ function opM(){
   if(!emps.length){alert('Cadastre pelo menos uma empresa antes de lançar uma movimentação.');return;}
   if(!prods.length){alert('Cadastre pelo menos um produto antes de lançar uma movimentação.');return;}
   eMid=null;g('mm-title').textContent='Nova Movimentação';
-  g('mdt').value=new Date().toISOString().slice(0,10);g('mob').value='';g('mnf').value='';g('mnfe').value='';
+  g('mdt').value=hojeLocalISO();g('mob').value='';g('mnf').value='';g('mnfe').value='';
   g('mu').value=curUser?curUser.name:'';
   g('mtp').value='RET-';
   if(g('mpendente'))g('mpendente').checked=false;
@@ -1806,38 +1831,101 @@ function opMEdit(id){
   itensMov=[{pid:m.pid||'',qty:Math.abs(m.q||1),mod:'manual',vu:m.vu||0,vt:m.vt||0}];
   renderItens();g('mm').classList.add('open');
 }
+// ══════════════════════════════════════════════
+// ESTOQUE — ajustes seguros (v1.16)
+// ══════════════════════════════════════════════
+// Aplica uma variação (delta) ao saldo de um produto DENTRO de uma transação: a regra
+// "saldo não pode ficar negativo" é checada no servidor, com o valor mais recente — então
+// duas pessoas lançando ao mesmo tempo não conseguem furar o saldo.
+// clamp=true só é usado em reversões que o Gerente confirmou (zera em vez de recusar).
+function ajustarEstoque(pid,delta,clamp){
+  if(!delta)return Promise.resolve();
+  if(!prods.some(function(p){return p.id===pid;}))return Promise.reject(new Error('PRODUTO_INEXISTENTE'));
+  return db.ref('epis/'+pid+'/at').transaction(function(v){
+    var novo=(v||0)+delta;
+    if(novo<0){if(clamp)novo=0;else return;}   // undefined = aborta a transação
+    return novo;
+  }).then(function(res){
+    if(!res.committed)throw new Error('ESTOQUE_INSUFICIENTE');
+  });
+}
+// Desfaz o efeito de uma movimentação antiga no saldo. Se isso deixaria o saldo negativo
+// (parte da mercadoria já saiu), pergunta ao Gerente se quer zerar e seguir.
+function desfazerEstoque(pid,delta){
+  var p=prods.find(function(x){return x.id===pid;});
+  if(!p||!delta)return Promise.resolve();   // produto já removido: nada a reverter
+  return ajustarEstoque(pid,delta).catch(function(err){
+    if(err&&err.message==='ESTOQUE_INSUFICIENTE'){
+      if(confirm('Desfazer esta movimentação deixaria o estoque de "'+p.n+'" negativo (atual: '+(p.at||0)+', a retirar: '+Math.abs(delta)+').\n\nIsso indica que parte dessa mercadoria já saiu.\nDeseja zerar o estoque deste item e continuar mesmo assim?')){
+        return ajustarEstoque(pid,delta,true).then(function(){addLog('mov','Estoque de '+p.n+' zerado ao desfazer movimentação (saldo ficaria negativo)','⚠️');});
+      }
+      throw new Error('CANCELADO');
+    }
+    throw err;
+  });
+}
+function msgErroEstoque(err,nome){
+  var m=err&&err.message;
+  if(m==='ESTOQUE_INSUFICIENTE')return'Estoque insuficiente'+(nome?' de "'+nome+'"':'')+'. Nada foi salvo.\n\nSe o saldo do sistema estiver diferente do físico, corrija primeiro com um Ajuste de Estoque (+).';
+  if(m==='PRODUTO_INEXISTENTE')return'Produto não encontrado (pode ter sido removido). Nada foi salvo.';
+  return'Erro ao salvar:\n'+(m||err);
+}
+
 function dMov(id){
   if(!isG())return;if(!confirm('Excluir esta movimentação?'))return;
   var m=movs.find(function(x){return x.id===id;});
-  // Se a movimentação já tinha entrado no estoque (não estava pendente), reverte ao excluir.
-  if(m&&m.pid&&!m.pendente){db.ref('epis/'+m.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(m.q||0));});}
-  db.ref('movimentos/'+id).remove();if(m)addLog('mov','Movimentação excluída: '+m.pn+' ('+m.io+')');
+  if(!m)return;
+  // Se a movimentação já tinha entrado no estoque (não estava pendente), reverte o saldo ANTES de apagar.
+  // Se a reversão for recusada/cancelada, a movimentação não é apagada (nada fica pela metade).
+  var temEfeito=!!(m.pid&&!m.pendente&&m.q);
+  var rev=temEfeito?desfazerEstoque(m.pid,-(m.q||0)):Promise.resolve();
+  rev.then(function(){return db.ref('movimentos/'+id).remove().catch(function(err){
+      if(temEfeito)ajustarEstoque(m.pid,(m.q||0),true).catch(function(){});   // remoção falhou: devolve o saldo
+      throw err;
+    });})
+    .then(function(){addLog('mov','Movimentação excluída: '+m.pn+' ('+m.io+')');})
+    .catch(function(err){
+      if(err&&err.message==='CANCELADO')return;
+      alert('Erro ao excluir:\n'+((err&&err.message)||err));
+    });
 }
 
 // Confirma que um pedido em trânsito chegou na loja: soma ao estoque,
 // remove a marcação de "pendente" e registra quantos dias o pedido realmente
 // levou (data do pedido até a confirmação), para alimentar o lead time real.
+// v1.16: a marcação "pendente" é reivindicada numa transação ANTES de somar ao estoque —
+// assim, dois cliques (ou duas pessoas) não somam o mesmo recebimento duas vezes.
 function confirmarRecebimento(movId){
   if(!isOp())return;
   var m=movs.find(function(x){return x.id===movId;});if(!m)return;
   if(!m.pendente){alert('Esta movimentação já foi recebida.');return;}
   if(!confirm('Confirmar recebimento de '+Math.abs(m.q||0)+'x '+(m.pn||'')+' na loja?\n\nO estoque será atualizado agora.'))return;
-  var hojeISO=new Date().toISOString().slice(0,10);
+  var hoje=hojeLocalISO();
   var diasReais=null;
-  if(m.dt){
-    var dPedido=new Date(m.dt),dHoje=new Date(hojeISO);
-    diasReais=Math.max(0,Math.round((dHoje-dPedido)/86400000));
-  }
-  db.ref('movimentos/'+movId).update({pendente:false,dtRecebido:hojeISO,leadReal:diasReais})
+  if(m.dt){diasReais=Math.max(0,Math.round((new Date(hoje)-new Date(m.dt))/86400000));}
+  var reivindicado=false,estoqueSomado=false;
+  db.ref('movimentos/'+movId+'/pendente').transaction(function(v){return v===true?false:undefined;})
+    .then(function(res){
+      if(!res.committed)throw new Error('JA_RECEBIDO');
+      reivindicado=true;
+      return ajustarEstoque(m.pid,Math.abs(m.q||0));
+    })
     .then(function(){
-      return db.ref('epis/'+m.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+(m.q||0));});
+      estoqueSomado=true;
+      return db.ref('movimentos/'+movId).update({dtRecebido:hoje,leadReal:diasReais});
     })
     .then(function(){
       var msgLead=diasReais!==null?(' · levou '+diasReais+' dia(s) da fábrica até a loja'):'';
       addLog('mov','Recebimento confirmado: '+Math.abs(m.q||0)+'x '+(m.pn||'')+msgLead,'📥');
       refreshPage();
     })
-    .catch(function(err){alert('Erro ao confirmar recebimento:\n'+(err.message||err));});
+    .catch(function(err){
+      if(err&&err.message==='JA_RECEBIDO'){alert('Este recebimento já foi confirmado (por você ou por outra pessoa).');return;}
+      // Falhou antes de somar ao estoque: devolve a marcação "pendente" para tentar de novo.
+      if(reivindicado&&!estoqueSomado)db.ref('movimentos/'+movId+'/pendente').set(true);
+      if(estoqueSomado)alert('O estoque foi atualizado, mas não foi possível gravar a data do recebimento:\n'+((err&&err.message)||err));
+      else alert('Erro ao confirmar recebimento:\n'+((err&&err.message)||err)+'\n\nNada foi alterado.');
+    });
 }
 
 // Lead time real médio de um produto: olha as últimas confirmações de recebimento
@@ -1867,51 +1955,83 @@ function svM(){
   var em=isCompra?null:emps.find(function(c){return c.id===eidRaw;});
   var enNome=isCompra?DESTINO_LOJA_NOME:(em?em.n:'');
   var dt=g('mdt').value,mu=g('mu').value||curUser.name,mnf=g('mnf').value,mnfe=g('mnfe').value,mob=g('mob').value;
+  if(!dt){alert('Informe a data da movimentação.');return;}
   if(isCompra&&!mnfe.trim()){alert('Informe o nome do fornecedor/fábrica em "Emitente / Fornecedor".');return;}
   var descs={'RET-':'(-) Retirada / Venda','AQU+':'(+) Aquisição / Compra','AJU+':'(+) Ajuste de Estoque','AJU-':'(-) Ajuste de Estoque','DEV+':'(+) Devolução','DES-':'(-) Descarte'};
   // Pendente só se aplica a Aquisição/Compra: representa um pedido feito à fábrica
   // que ainda não chegou na loja. Enquanto pendente, NÃO soma ao estoque atual.
   var pendente=(isCompra&&g('mpendente')&&g('mpendente').checked);
+
+  // ── Validações (v1.16) — tudo checado ANTES de gravar qualquer coisa ──
+  if(itensMov.some(function(it){return!(it.qty>0)||!isFinite(it.qty);})){alert('Informe uma quantidade maior que zero em todos os itens.');return;}
+  if(itensMov.some(function(it){return!prods.some(function(p){return p.id===it.pid;});})){alert('Há item sem produto válido. Verifique a seleção.');return;}
+  var old=eMid?movs.find(function(m){return m.id===eMid;}):null;
+  if(!isIn){   // saída, descarte ou ajuste negativo: não pode passar do saldo
+    var precisa={};itensMov.forEach(function(it){precisa[it.pid]=(precisa[it.pid]||0)+it.qty;});
+    var faltas=[];
+    Object.keys(precisa).forEach(function(pid){
+      var p=prods.find(function(x){return x.id===pid;});
+      // ao editar, o que a movimentação antiga já tirou/pôs no saldo volta antes de aplicar a nova
+      var disp=(p.at||0)-((old&&old.pid===pid&&!old.pendente)?(old.q||0):0);
+      if(precisa[pid]>disp)faltas.push(p.n+' (disponível: '+disp+' · pedido: '+precisa[pid]+')');
+    });
+    if(faltas.length){alert('Estoque insuficiente:\n\n• '+faltas.join('\n• ')+'\n\nNada foi salvo. Se o saldo do sistema estiver diferente do físico, corrija primeiro com um Ajuste de Estoque (+).');return;}
+  }
+
   var btnSv=g('mm').querySelector('button.bp2');if(btnSv){btnSv.disabled=true;btnSv.textContent='Salvando...';}
   function reEnableBtn(){var b=g('mm').querySelector('button.bp2');if(b){b.disabled=false;b.textContent='💾 Salvar Movimentação';}}
+  function noop(){}
+
   if(eMid){
+    // ── EDIÇÃO: desfaz o efeito antigo no saldo → aplica o novo → grava o registro. Se algo falha, volta tudo. ──
     var it=itensMov[0],pr=prods.find(function(p){return p.id===it.pid;});
-    var old=movs.find(function(m){return m.id===eMid;});
-    // Reverte estoque antigo (só se a versão antiga já havia sido somada, ou seja, não era pendente)
-    if(old&&old.pid&&!old.pendente){db.ref('epis/'+old.pid+'/at').transaction(function(v){return Math.max(0,(v||0)-(old.q||0));});}
     var nq=isIn?it.qty:-it.qty;
-    db.ref('movimentos/'+eMid).set({id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr?pr.n:'',ca:pr?pr.ca:0,q:nq,eid:eid,en:enNome,dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
+    var efeitoAntigo=(old&&old.pid&&!old.pendente)?(old.q||0):0;
+    var revertido=false,aplicado=false;
+    var obj={id:eMid,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:enNome,dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente};
+    (efeitoAntigo?desfazerEstoque(old.pid,-efeitoAntigo):Promise.resolve())
+      .then(function(){revertido=!!efeitoAntigo;return pendente?null:ajustarEstoque(it.pid,nq);})
+      .then(function(){aplicado=!pendente;return db.ref('movimentos/'+eMid).set(obj);})
       .then(function(){
-        if(pr&&!pendente){db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});}
-        addLog('mov','Movimentação editada: '+it.qty+'x '+(pr?pr.n:''),'✏️');
-        reEnableBtn();
-        cl('mm');
+        addLog('mov','Movimentação editada: '+it.qty+'x '+pr.n,'✏️');
+        reEnableBtn();cl('mm');
       })
       .catch(function(err){
-        alert('Erro ao salvar:\n'+(err.message||err));
-        reEnableBtn();
+        var voltas=[];
+        if(aplicado)voltas.push(ajustarEstoque(it.pid,-nq,true).catch(noop));
+        if(revertido)voltas.push(ajustarEstoque(old.pid,efeitoAntigo,true).catch(noop));
+        Promise.all(voltas).then(function(){
+          if(!(err&&err.message==='CANCELADO'))alert(msgErroEstoque(err,pr.n));
+          reEnableBtn();
+        });
       });
   }else{
-    var logItens=[],promises=[];
-    itensMov.forEach(function(it){
-      var pr=prods.find(function(p){return p.id===it.pid;});if(!pr)return;
+    // ── NOVA: item a item (saldo primeiro, depois o registro). Se qualquer item falhar, TODOS os anteriores são desfeitos. ──
+    var itens=itensMov.map(function(it){
+      var pr=prods.find(function(p){return p.id===it.pid;});
       var id=uid(),nq=isIn?it.qty:-it.qty;
-      promises.push(
-        db.ref('movimentos/'+id).set({id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:enNome,dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente})
-          .then(function(){if(!pendente)db.ref('epis/'+it.pid+'/at').transaction(function(v){return Math.max(0,(v||0)+nq);});})
-      );
-      logItens.push(it.qty+'x '+pr.n);
+      return{pid:it.pid,pr:pr,qty:it.qty,nq:nq,id:id,aplicado:false,gravado:false,
+        obj:{id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:enNome,dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente}};
     });
-    if(!logItens.length){alert('Nenhum item válido encontrado. Verifique se os produtos estão corretamente selecionados.');reEnableBtn();return;}
-    Promise.all(promises)
+    var nomeAtual='',chain=Promise.resolve();
+    itens.forEach(function(x){
+      chain=chain
+        .then(function(){nomeAtual=x.pr.n;return pendente?null:ajustarEstoque(x.pid,x.nq);})
+        .then(function(){x.aplicado=!pendente;return db.ref('movimentos/'+x.id).set(x.obj);})
+        .then(function(){x.gravado=true;});
+    });
+    chain
       .then(function(){
-        addLog('mov',descs[cod]+(pendente?' (🚚 em trânsito)':'')+': '+logItens.join(', ')+(mnf?' ('+mnf+')':''),'↔️');
-        reEnableBtn();
-        cl('mm');
+        addLog('mov',descs[cod]+(pendente?' (🚚 em trânsito)':'')+': '+itens.map(function(x){return x.qty+'x '+x.pr.n;}).join(', ')+(mnf?' ('+mnf+')':''),'↔️');
+        reEnableBtn();cl('mm');
       })
       .catch(function(err){
-        alert('Erro ao salvar:\n'+(err.message||err));
-        reEnableBtn();
+        var voltas=[];
+        itens.forEach(function(x){
+          if(x.gravado)voltas.push(db.ref('movimentos/'+x.id).remove().catch(noop));
+          if(x.aplicado)voltas.push(ajustarEstoque(x.pid,-x.nq,true).catch(noop));
+        });
+        Promise.all(voltas).then(function(){alert(msgErroEstoque(err,nomeAtual));reEnableBtn();});
       });
   }
 }
@@ -1973,7 +2093,7 @@ function rR(){
   });g('retbl').innerHTML=rows||'<tr class="er"><td colspan="8">Sem produtos</td></tr>';
 
   // Compras
-  var low=prods.filter(function(p){return(p.at||0)<(p.mn||0);});
+  var low=prods.filter(isBaixo);
   var ch='';
   if(!low.length)ch='<div class="al al-g">✅ Todos os produtos estão com estoque adequado!</div>';
   else{ch='<div class="al al-w">⚠️ '+low.length+' produto(s) abaixo do mínimo</div><div class="card"><div class="tscroll"><table><thead><tr><th>Produto</th><th>CA</th><th>Mín</th><th>Atual</th><th>Déficit</th><th>Sugerido</th><th>Custo Est.</th><th>Ação</th></tr></thead><tbody>';
@@ -2022,7 +2142,7 @@ function rR(){
 // qualquer tela (Ruptura, Ficha do Produto, Relatórios) sem duplicar a lógica.
 function classificarABC(){
   var hoje=new Date();
-  var dtCorte=new Date(hoje.getFullYear(),hoje.getMonth()-12,hoje.getDate()).toISOString().slice(0,10);
+  var dtCorte=dataLocalISO(new Date(hoje.getFullYear(),hoje.getMonth()-12,hoje.getDate()));
   var porProd={};
   movs.forEach(function(m){
     if(m.io!=='Saída'||!m.pid||(m.dt||'')<dtCorte)return;
@@ -2143,16 +2263,16 @@ function dlCSV(filename,rows){
   var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
 }
 function exportCSV(type){
-  var now=new Date().toISOString().slice(0,10);
+  var now=hojeLocalISO();
   if(type==='products'){var rows=[['Produto','CA','Cat.','Mín','Máx','Ideal','Atual','Situação']];prods.forEach(function(p){rows.push([p.n,p.ca,p.cat,p.mn,p.mx,p.id2,p.at,st(p)]);});dlCSV('Produtos_'+now+'.csv',rows);}
   else if(type==='companies'){var rows=[['Empresa','Tipo']];emps.forEach(function(c){rows.push([c.n,c.t]);});dlCSV('Empresas_'+now+'.csv',rows);}
   else if(type==='movements'){var rows=[['ID','Data','IO','Operação','Produto','CA','Empresa','Qty','Vl.Unit.','Vl.Total','NF','Emitente','Usuário','Obs']];movs.slice().sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;}).forEach(function(m){rows.push([m.id,m.dt,m.io,m.desc,m.pn,m.ca,m.en,m.q,m.vu,m.vt,m.nf||'',m.nfe||'',m.u,m.obs||'']);});dlCSV('Movimentacoes_'+now+'.csv',rows);}
   else if(type==='prices'){var rows=[['Produto','CA','P.Base','P.Diret.','P.Dist.','P.Final','Margem%']];prods.forEach(function(p){var mg=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;rows.push([p.n,p.ca,p.b,p.dp,p.di,p.f,mg+'%']);});dlCSV('Precos_'+now+'.csv',rows);}
 }
 function exportReport(){
-  var now=new Date().toISOString().slice(0,10);var rows=[],fn='Relatorio_'+now+'.csv';
+  var now=hojeLocalISO();var rows=[],fn='Relatorio_'+now+'.csv';
   if(curTab==='re'){rows=[['Produto','CA','Mín','Máx','Atual','%','Situação','Val.Estoque']];prods.forEach(function(p){rows.push([p.n,p.ca,p.mn,p.mx,p.at,Math.round(((p.at||0)/(p.mx||1))*100)+'%',st(p),((p.at||0)*(p.b||0)).toFixed(2)]);});fn='Relatorio_Estoque_'+now+'.csv';}
-  else if(curTab==='rc'){var low=prods.filter(function(p){return(p.at||0)<(p.mn||0);});rows=[['Produto','CA','Mín','Atual','Déficit','Sugerido','Custo Est.']];low.forEach(function(p){var sg=(p.mx||0)-(p.at||0);rows.push([p.n,p.ca,p.mn,p.at,(p.mn||0)-(p.at||0),sg,'R$'+(sg*(p.b||0)).toFixed(2)]);});fn='Relatorio_Compras_'+now+'.csv';}
+  else if(curTab==='rc'){var low=prods.filter(isBaixo);rows=[['Produto','CA','Mín','Atual','Déficit','Sugerido','Custo Est.']];low.forEach(function(p){var sg=(p.mx||0)-(p.at||0);rows.push([p.n,p.ca,p.mn,p.at,(p.mn||0)-(p.at||0),sg,'R$'+(sg*(p.b||0)).toFixed(2)]);});fn='Relatorio_Compras_'+now+'.csv';}
   else if(curTab==='rl'){rows=[['Empresa','Tipo','Movs.','Total Unid.','Valor Total']];emps.forEach(function(c){var mv=movs.filter(function(m){return m.eid===c.id&&m.io==='Saída';});var tot=mv.reduce(function(s,m){return s+Math.abs(m.q||0);},0);var vt=mv.reduce(function(s,m){return s+(m.vt||0);},0);if(tot>0)rows.push([c.n,c.t,mv.length,tot,'R$'+vt.toFixed(2)]);});fn='Relatorio_Clientes_'+now+'.csv';}
   else if(curTab==='rf'){rows=[['Produto','Qtd.','P.Base','P.Final','Val.Custo','Val.Venda','Margem%','MargemReal_Vendido']];prods.forEach(function(p){var m2=p.b>0?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):0;var sP=movs.filter(function(m){return m.io==='Saída'&&m.pid===p.id;});var vtRealP=sP.reduce(function(s,m){return s+(m.vt||0);},0);var custoRealP=sP.reduce(function(s,m){return s+Math.abs(m.q||0)*(p.b||0);},0);rows.push([p.n,p.at,p.b,p.f,((p.at||0)*(p.b||0)).toFixed(2),((p.at||0)*(p.f||0)).toFixed(2),m2+'%',(vtRealP-custoRealP).toFixed(2)]);});fn='Relatorio_Financeiro_'+now+'.csv';}
   else if(curTab==='rp'){var ini=g('rp-ini').value,fim=g('rp-fim').value;var filtMovs=movs.filter(function(m){return m.dt&&m.dt>=ini&&m.dt<=fim;});rows=[['Data','IO','Produto','Empresa','Qty','Vl.Unit.','Vl.Total','NF']];filtMovs.sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;}).forEach(function(m){rows.push([m.dt,m.io,m.pn,m.en,m.q,m.vu,m.vt,m.nf||'']);});fn='Relatorio_Periodo_'+ini+'_a_'+fim+'.csv';}
@@ -2163,7 +2283,7 @@ function exportReport(){
 function backupJSON(){
   var data={exportedAt:new Date().toISOString(),produtos:prods,empresas:emps,movimentacoes:movs,usuarios:users.map(function(u){return{id:u.id,login:u.login,name:u.name,role:u.role,status:u.status};})};
   var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='EPI_Backup_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(url);
+  var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='EPI_Backup_'+hojeLocalISO()+'.json';a.click();URL.revokeObjectURL(url);
   addLog('user','Backup JSON exportado','💾');
 }
 
@@ -2382,14 +2502,14 @@ function doGSearch(q){
 function toggleBell(){var p=g('bell-panel');p.classList.toggle('open');if(p.classList.contains('open'))renderBell();}
 function renderBell(){
   var alertas=[];
-  var crit=prods.filter(function(p){return p.mx>0&&(p.at||0)/(p.mx)<0.15;});
-  var low=prods.filter(function(p){return(p.at||0)<(p.mn||0)&&!(p.mx>0&&(p.at||0)/(p.mx)<0.15);});
-  var zero=prods.filter(function(p){return(p.at||0)===0;});
-  crit.forEach(function(p){alertas.push({icon:'🚨',bg:'#fee2e2',text:'<strong>'+esc(p.n)+'</strong> — estoque CRÍTICO ('+p.at+'/'+p.mx+')',time:'Estoque'});});
+  var crit=prods.filter(function(p){return isCritico(p)&&(p.at||0)>0;});
+  var low=prods.filter(function(p){return isBaixo(p)&&!isCritico(p);});
+  var zero=prods.filter(function(p){return(p.at||0)<=0;});
+  crit.forEach(function(p){alertas.push({icon:'🚨',bg:'#fee2e2',text:'<strong>'+esc(p.n)+'</strong> — estoque CRÍTICO ('+p.at+' un · mín. '+(p.mn||0)+')',time:'Estoque'});});
   zero.forEach(function(p){alertas.push({icon:'⛔',bg:'#fef3c7',text:'<strong>'+esc(p.n)+'</strong> — estoque ZERADO',time:'Repor imediatamente'});});
   low.forEach(function(p){alertas.push({icon:'⚠️',bg:'#fef9c3',text:'<strong>'+esc(p.n)+'</strong> — abaixo do mínimo ('+p.at+'/'+p.mn+')',time:'Monitorar'});});
   // Empresas sem comprar há +60 dias
-  emps.forEach(function(e){var cm=movs.filter(function(m){return m.eid===e.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});if(!cm.length)return;var dias=Math.floor((new Date()-new Date(cm[0].dt))/86400000);if(dias>60)alertas.push({icon:'📅',bg:'#ede9fe',text:'<strong>'+esc(e.n)+'</strong> — sem comprar há '+dias+' dias',time:'Sugerir pedido'});});
+  emps.forEach(function(e){var cm=movs.filter(function(m){return m.eid===e.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});if(!cm.length)return;var dias=diasDesde(cm[0].dt);if(dias>60)alertas.push({icon:'📅',bg:'#ede9fe',text:'<strong>'+esc(e.n)+'</strong> — sem comprar há '+dias+' dias',time:'Sugerir pedido'});});
   var badge=g('bell-badge'),btn=g('bell-btn');
   if(badge){badge.textContent=alertas.length;badge.style.display=alertas.length>0?'flex':'none';}
   if(alertas.length===0){g('bell-list').innerHTML='<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">✅ Nenhum alerta no momento</div>';return;}
@@ -2411,7 +2531,7 @@ function rEmpDash(eid){
   var totV=cMovs.reduce(function(s,m){return s+(m.vt||0);},0);
   var totQ=cMovs.reduce(function(s,m){return s+Math.abs(m.q||0);},0);
   var ultimaCompra=cMovs[0]?cMovs[0].dt:null;
-  var dias=ultimaCompra?Math.floor((new Date()-new Date(ultimaCompra))/86400000):null;
+  var dias=ultimaCompra?diasDesde(ultimaCompra):null;
   var diasLabel=dias===null?'—':dias===0?'Hoje':dias===1?'1 dia':dias+' dias';
   var diasColor=dias===null?'#94a3b8':dias>60?'#ef4444':dias>30?'#f59e0b':'#10b981';
   var ticketM=cMovs.length?totV/cMovs.length:0;
@@ -2467,7 +2587,7 @@ function exportEmpDash(){
   var cMovs=movs.filter(function(m){return m.eid===curEmpDash&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});
   var rows=[['Data','Produto','CA','Qty','Vl.Unit.','Vl.Total','NF','Usuário']];
   cMovs.forEach(function(m){rows.push([m.dt,m.pn||'',m.ca||'',Math.abs(m.q||0),m.vu||0,m.vt||0,m.nf||'',m.u||'']);});
-  dlCSV('Empresa_'+emp.n.replace(/[^a-zA-Z0-9]/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.csv',rows);
+  dlCSV('Empresa_'+emp.n.replace(/[^a-zA-Z0-9]/g,'_')+'_'+hojeLocalISO()+'.csv',rows);
 }
 
 // ══════════════════════════════════════════════
@@ -2476,7 +2596,7 @@ function exportEmpDash(){
 function exportPDF(){window.print();}
 
 // Atualiza alertas a cada vez que dados mudam
-function updateAlerts(){if(g('bell-panel')&&g('bell-panel').classList.contains('open'))renderBell();var alertCount=prods.filter(function(p){return(p.at||0)<(p.mn||0)||(p.at||0)===0;}).length+emps.filter(function(e){var cm=movs.filter(function(m){return m.eid===e.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});return cm.length&&Math.floor((new Date()-new Date(cm[0].dt))/86400000)>60;}).length;var badge=g('bell-badge');if(badge){badge.textContent=alertCount;badge.style.display=alertCount>0?'flex':'none';}}
+function updateAlerts(){if(g('bell-panel')&&g('bell-panel').classList.contains('open'))renderBell();var alertCount=prods.filter(isBaixo).length+emps.filter(function(e){var cm=movs.filter(function(m){return m.eid===e.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});return cm.length&&diasDesde(cm[0].dt)>60;}).length;var badge=g('bell-badge');if(badge){badge.textContent=alertCount;badge.style.display=alertCount>0?'flex':'none';}}
 
 </script>
 </body>
