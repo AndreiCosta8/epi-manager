@@ -15,6 +15,17 @@
      2) "Baixo" e "Crítico" agora têm UMA definição só (baseada no Estoque Mínimo) em menu, dashboard,
         filtro, sino e relatórios.
      3) Datas usam o fuso local (antes, depois das 21h em Parauapebas o sistema gravava o dia seguinte). -->
+<!-- v1.17 (19/09/2026): Perfis validados no servidor + usuários de verdade + produtos/preços protegidos.
+     1) Perfil (Gerente/Operador/Visualizador) agora fica em "papeis/<e-mail>" no banco; as regras do Firebase
+        (database.rules.json) usam esse mesmo nó — a checagem deixa de existir só na tela.
+     2) Tela Usuários: "Novo Usuário" cria a conta de login de verdade (com a senha digitada); "Inativo" e
+        excluir revogam o acesso; não deixa o sistema ficar sem Gerente.
+     3) Produtos: só o Gerente altera preços; o saldo deixa de ser regravado com valor velho ao editar um produto.
+     4) Lançamento de movimentação em 2 fases (saldo de todos os itens → registros), sem precisar apagar nada em caso de falha.
+     5) Log: carrega só as últimas 300 entradas; backup inclui o histórico mensal e há lembrete de backup para o Gerente;
+        tela de login aparece na hora (antes esperava até 8 s quando não havia sessão).
+     6) Sair recarrega a página: os dados e listeners do perfil anterior não ficam na memória de quem entra em seguida.
+     7) "🔑 Alterar senha": cada pessoa troca a própria senha (o Gerente não vê nem define a senha de ninguém depois de criada). -->
 <title>EPI Manager – Loja Parauapebas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -313,7 +324,7 @@ select:focus,input:focus{border-color:#10b981}
     <button class="sb-close" onclick="closeSidebar()">✕</button>
   </div>
   <div style="padding:8px 10px 4px">
-    <div class="ucard"><div class="uname" id="sb-uname">—</div><div class="urole" id="sb-urole">—</div><button class="logout-btn" onclick="doLogout()">⬅ Sair</button></div>
+    <div class="ucard"><div class="uname" id="sb-uname">—</div><div class="urole" id="sb-urole">—</div><button class="logout-btn" onclick="opSenha()">🔑 Alterar senha</button><button class="logout-btn" onclick="doLogout()">⬅ Sair</button></div>
   </div>
   <div class="fb-ind"><div class="fb-dot"></div><span id="fb-status-text">Sincronizado • Tempo real</span></div>
   <div class="nav-sec">Menu</div>
@@ -557,7 +568,7 @@ select:focus,input:focus{border-color:#10b981}
     </table></div>
   </div></div>
   <div class="card"><div style="padding:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div><div style="font-size:13px;font-weight:600;margin-bottom:4px">💾 Backup dos Dados</div><div style="font-size:11px;color:#64748b">Exporta todos os dados do sistema em formato JSON</div></div>
+    <div><div style="font-size:13px;font-weight:600;margin-bottom:4px">💾 Backup dos Dados</div><div style="font-size:11px;color:#64748b">Exporta todos os dados do sistema (produtos, empresas, movimentações, histórico mensal e usuários) em formato JSON</div><div id="backup-info" style="font-size:11px;font-weight:600;margin-top:4px"></div></div>
     <button class="btn bexp" onclick="backupJSON()">⬇ Baixar Backup JSON</button>
   </div></div>
 </div>
@@ -760,8 +771,21 @@ select:focus,input:focus{border-color:#10b981}
       </div>
     </div>
     <div class="fgp"><label class="fl">Status</label><select class="fi" id="u-status"><option>Ativo</option><option>Inativo</option></select></div>
+    <div id="u-hint" style="font-size:11px;color:#64748b;margin-top:10px;line-height:1.5"></div>
   </div>
   <div class="mf"><button class="btn bs2" onclick="cl('muser')">Cancelar</button><button class="btn bp2" onclick="svU()">Salvar</button></div>
+</div></div>
+
+<!-- Modal Alterar minha senha -->
+<div class="mbg" id="mpass"><div class="modal" style="max-width:380px">
+  <div class="mh"><h3>🔑 Alterar minha senha</h3><button class="ib" onclick="cl('mpass')">✕</button></div>
+  <div class="mb">
+    <div class="fgp"><label class="fl">Senha atual *</label><input class="fi" type="password" id="ps-atual" autocomplete="current-password"></div>
+    <div class="fgp" style="margin-top:8px"><label class="fl">Nova senha * (mín. 6 caracteres)</label><input class="fi" type="password" id="ps-nova" autocomplete="new-password"></div>
+    <div class="fgp" style="margin-top:8px"><label class="fl">Repita a nova senha *</label><input class="fi" type="password" id="ps-conf" autocomplete="new-password"></div>
+    <div id="ps-msg" style="font-size:11px;margin-top:10px;color:#dc2626;line-height:1.5"></div>
+  </div>
+  <div class="mf"><button class="btn bs2" onclick="cl('mpass')">Cancelar</button><button class="btn bp2" onclick="svSenha()">Salvar</button></div>
 </div></div>
 
 <!-- Modal Edição de Preços -->
@@ -866,6 +890,18 @@ var LOGIN_MAP={
   "railson": {email:"railson@epi-parauapebas.app",  name:"Railson Barros",   role:"Operador",     status:"Ativo"},
   "viewer":  {email:"viewer@epi-parauapebas.app",   name:"Visualizador",     role:"Visualizador", status:"Inativo"}
 };
+// v1.17: o mapa acima serve só para achar o e-mail de quem digita um login curto (e como plano B se o banco
+// não responder). Quem manda de verdade no acesso é "papeis/<e-mail>" no banco, que as regras do Firebase também usam.
+function emailKey(e){return String(e||'').trim().toLowerCase().replace(/\./g,',');}
+function emailDeLogin(login){
+  login=String(login||'').trim().toLowerCase();
+  if(!login)return null;
+  if(Object.prototype.hasOwnProperty.call(LOGIN_MAP,login))return LOGIN_MAP[login].email;
+  if(login.indexOf('@')>0)return login;
+  return login+'@epi-parauapebas.app';   // mesmo padrão dos usuários atuais
+}
+function emailDoUsuario(u){return u&&u.email?String(u.email).toLowerCase():emailDeLogin(u&&u.login);}
+var PAPEIS_VALIDOS=['Gerente','Operador','Visualizador'];
 var INIT_USERS=[
   {id:"u1",login:"andrei", name:"Andrei Costa",   role:"Gerente",      status:"Ativo"},
   {id:"u2",login:"railson",name:"Railson Barros",  role:"Operador",     status:"Ativo"},
@@ -997,7 +1033,7 @@ function addLog(tipo,msg,icon){
   if(!curUser)return;
   var id=uid();
   var entry={id:id,tipo:tipo,msg:msg,icon:icon||'📋',user:curUser.name,role:curUser.role,ts:nowISO()};
-  db.ref('logs/'+id).set(entry);
+  return db.ref('logs/'+id).set(entry);
 }
 
 // ══════════════════════════════════════════════
@@ -1014,24 +1050,67 @@ function cleanRef(ref,key){
   });
 }
 
+var listenersIniciados=false;
 function setupListeners(){
   // Aguarda autenticação antes de acessar o banco
   auth.onAuthStateChanged(function(firebaseUser){
-    if(!firebaseUser) return; // não autenticado, não lê o banco
-    startDbListeners();
+    if(!firebaseUser){showLogin();return;}   // sem sessão: mostra o login na hora (antes esperava 8 s)
+    // sessão que já existia (ex.: página recarregada): descobre o papel e só então liga os listeners
+    resolverPapel(firebaseUser.email).then(function(r){
+      if(r.papel)startDbListeners(r.papel==='Gerente');else showLogin();
+    });
   });
-  // Monitora conexão
+}
+// Descobre o papel de quem entrou. Fonte da verdade: papeis/<e-mail> (as regras do servidor usam o mesmo nó).
+// Transição: se ainda não há papel gravado E o banco ainda aceita ler "usuarios" (regras antigas), usa o cadastro/mapa —
+// assim dá para publicar este arquivo ANTES de publicar as regras novas. Com as regras novas, sem papel = sem acesso.
+function resolverPapel(email){
+  email=String(email||'').toLowerCase();
+  return db.ref('papeis/'+emailKey(email)).once('value')
+    .then(function(s){return s.val();}).catch(function(){return null;})
+    .then(function(papel){
+      if(papel&&PAPEIS_VALIDOS.indexOf(papel)>=0)return{papel:papel,origem:'papeis'};
+      return db.ref('usuarios').once('value').then(function(us){
+        var d=us.val(),lista=d?Object.values(d).filter(function(u){return u&&u.login;}):[];
+        var u=lista.find(function(x){return emailDoUsuario(x)===email;});
+        if(u)return u.status==='Inativo'?{papel:null,motivo:'inativo'}:{papel:u.role,origem:'cadastro',usuario:u};
+        var login=Object.keys(LOGIN_MAP).find(function(k){return LOGIN_MAP[k].email===email;});
+        var m=login?LOGIN_MAP[login]:null;
+        if(m&&m.status!=='Inativo')return{papel:m.role,origem:'mapa'};
+        return{papel:null,motivo:m?'inativo':'sem-cadastro'};
+      }).catch(function(){return{papel:null,motivo:'sem-permissao'};});
+    });
+}
+// Gerente: mantém papeis/<e-mail> em dia com o cadastro (Ativo → papel; Inativo → sem acesso).
+function sincronizarPapeis(){
+  if(!isG())return Promise.resolve();
+  var meu=emailKey(curUser&&curUser.email);
+  return Promise.all([db.ref('usuarios').once('value'),db.ref('papeis').once('value')]).then(function(r){
+    var us=r[0].val(),atual=r[1].val()||{},ups={},n=0;
+    (us?Object.values(us):[]).filter(function(u){return u&&u.login;}).forEach(function(u){
+      var k=emailKey(emailDoUsuario(u));if(!k||k===meu)return;
+      var alvo=u.status==='Inativo'?null:u.role;
+      if(alvo&&PAPEIS_VALIDOS.indexOf(alvo)<0)return;
+      if((alvo||null)!==(atual[k]||null)){ups[k]=alvo;n++;}
+    });
+    if(!atual[meu]&&PAPEIS_VALIDOS.indexOf(curUser.role)>=0){ups[meu]=curUser.role;n++;}
+    if(!n)return;
+    return db.ref('papeis').update(ups).then(function(){addLog('user','Permissões sincronizadas ('+n+')','🔑');});
+  }).catch(function(e){console.warn('sincronizarPapeis:',e);});
 }
 
-function startDbListeners(){
-  cleanRef(db.ref('empresas'),'n');
-  cleanRef(db.ref('epis'),'n');
-  cleanRef(db.ref('movimentos'),'io');
-  cleanRef(db.ref('usuarios'),'login');
+function startDbListeners(isGer){
+  if(listenersIniciados)return;listenersIniciados=true;   // antes podia ligar duas vezes (login + sessão salva)
+  if(isGer){   // limpeza de registros quebrados: só o Gerente pode apagar
+    cleanRef(db.ref('empresas'),'n');
+    cleanRef(db.ref('epis'),'n');
+    cleanRef(db.ref('movimentos'),'io');
+    cleanRef(db.ref('usuarios'),'login');
+  }
 
   db.ref('usuarios').on('value',function(snap){
     var d=snap.val();
-    if(!d){INIT_USERS.forEach(function(u){var obj={id:u.id,login:u.login,name:u.name,role:u.role,status:u.status};db.ref('usuarios/'+obj.id).set(obj);});users=INIT_USERS.slice();}
+    if(!d){if(isGer)INIT_USERS.forEach(function(u){var obj={id:u.id,login:u.login,name:u.name,role:u.role,status:u.status};db.ref('usuarios/'+obj.id).set(obj);});users=INIT_USERS.slice();}
     else users=Object.values(d).filter(function(u){return u&&u.login;});
     fbLoaded.users=true;checkLoaded();if(curUser&&curPage==='users')rU();
   });
@@ -1055,11 +1134,14 @@ function startDbListeners(){
     historico=d?Object.values(d).filter(function(h){return h&&h.ano;}):[]; 
     if(curUser)rD();
   });
-  db.ref('logs').on('value',function(snap){
-    var d=snap.val();
-    logs=d?Object.values(d).sort(function(a,b){return(b.ts||'')>(a.ts||'')?1:-1;}):[]; 
-    fbLoaded.logs=true;checkLoaded();if(curUser&&curPage==='logs')rLogs();
-  });
+  if(isGer){
+    // só o Gerente vê o log; carrega as 300 entradas mais recentes (as chaves "id<timestamp>" já ordenam por data)
+    db.ref('logs').orderByKey().limitToLast(300).on('value',function(snap){
+      var d=snap.val();
+      logs=d?Object.values(d).sort(function(a,b){return(b.ts||'')>(a.ts||'')?1:-1;}):[]; 
+      fbLoaded.logs=true;checkLoaded();if(curUser&&curPage==='logs')rLogs();
+    });
+  }else{fbLoaded.logs=true;checkLoaded();}
   db.ref('.info/connected').on('value',function(snap){
     var on=snap.val();
     var ch=g('online-chip'),fb=g('fb-status-text');
@@ -1126,13 +1208,12 @@ function closeSidebar(){g('sidebar').classList.remove('open');g('overlay').class
 function doLogin(){
   var login=g('li-user').value.trim().toLowerCase(),pass=g('li-pass').value;
   var errEl=g('li-err'),btn=document.querySelector('.lbtn');
-  // Valida se login existe no mapa
-  var map=LOGIN_MAP[login];
-  if(!map){errEl.textContent='❌ Usuário ou senha incorretos.';errEl.style.display='block';return;}
-  if(map.status==='Inativo'){errEl.textContent='❌ Usuário inativo. Contate o administrador.';errEl.style.display='block';return;}
-  // Autentica no Firebase PRIMEIRO (sem precisar do banco carregado)
+  var email=emailDeLogin(login);
+  if(!email){errEl.textContent='❌ Usuário ou senha incorretos.';errEl.style.display='block';return;}
+  var map=Object.prototype.hasOwnProperty.call(LOGIN_MAP,login)?LOGIN_MAP[login]:null;
   errEl.style.display='none';
   btn.disabled=true;btn.textContent='Entrando...';
+  function falha(msg){btn.disabled=false;btn.textContent='Entrar no Sistema';errEl.textContent=msg;errEl.style.display='block';}
   function entrarComPerfil(dbUser){
     curUser=dbUser;
     g('loginScreen').style.display='none';
@@ -1146,52 +1227,55 @@ function doLogin(){
     var ri={'Gerente':'👑 Gerente','Operador':'⚙️ Operador','Visualizador':'👁️ Visualizador'};
     g('sb-urole').innerHTML='<span class="'+(rc[dbUser.role]||'role-v')+'">'+(ri[dbUser.role]||dbUser.role)+'</span>';
     g('nav-users').style.display=isG()?'flex':'none';
+    atualizarInfoBackup();
     g('nav-logs').style.display=isG()?'flex':'none';
     g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
     applyPermUI();rD();
     btn.disabled=false;btn.textContent='Entrar no Sistema';
   }
-  auth.signInWithEmailAndPassword(map.email,pass)
+  auth.signInWithEmailAndPassword(email,pass)
     .then(function(){
-      // Autenticado! Dispara os listeners de tempo real (produtos, empresas, movimentações
-      // etc. continuam chegando em segundo plano) e, em paralelo, busca o perfil do usuário
-      // (nome/cargo) com uma única leitura direta — sem ficar checando repetidamente a
-      // cada 300ms, que era o que causava o atraso perceptível na entrada.
-      startDbListeners();
+      // Autenticado. O papel vem do banco (papeis/<e-mail>); sem papel não entra (usuário inativo/removido).
       var jaEntrou=false;
-      db.ref('usuarios').once('value')
-        .then(function(snap){
-          if(jaEntrou)return;jaEntrou=true;
+      resolverPapel(email).then(function(r){
+        if(jaEntrou)return;
+        if(!r.papel){
+          jaEntrou=true;auth.signOut();
+          falha(r.motivo==='inativo'?'❌ Usuário inativo. Contate o administrador.':'❌ Sem permissão de acesso. Contate o administrador.');
+          return;
+        }
+        jaEntrou=true;
+        startDbListeners(r.papel==='Gerente');
+        return db.ref('usuarios').once('value').then(function(snap){
           var d=snap.val();
           var lista=d?Object.values(d).filter(function(u){return u&&u.login;}):[];
-          var dbUser=lista.find(function(u){return u.login===login;});
-          if(dbUser){addLog('user','Login realizado','🔐');entrarComPerfil(dbUser);}
-          else entrarComPerfil({id:'temp',login:login,name:map.name,role:map.role,status:map.status});
-        })
-        .catch(function(){
-          if(jaEntrou)return;jaEntrou=true;
-          // Falha ao ler o perfil (ex: instabilidade momentânea) — entra com os dados
-          // básicos já conhecidos do mapa de login, em vez de travar a tela de espera.
-          entrarComPerfil({id:'temp',login:login,name:map.name,role:map.role,status:map.status});
+          var u=r.usuario||lista.find(function(x){return emailDoUsuario(x)===email;});
+          entrarComPerfil(u?{id:u.id,login:u.login,email:email,name:u.name,role:r.papel,status:u.status}
+                           :{id:'temp',login:login,email:email,name:map?map.name:email,role:r.papel,status:'Ativo'});
+          if(u)addLog('user','Login realizado','🔐');
+          if(r.papel==='Gerente')sincronizarPapeis();
+        }).catch(function(){
+          entrarComPerfil({id:'temp',login:login,email:email,name:map?map.name:email,role:r.papel,status:'Ativo'});
         });
-      // Rede de segurança: se por algum motivo a leitura direta nunca responder
-      // (ex: conexão muito instável), libera o acesso com os dados básicos após 8s.
+      });
+      // Rede de segurança: se o banco não responder (conexão muito instável), libera com o mínimo conhecido após 8 s.
+      // (O servidor continua aplicando as regras de verdade; isto só evita a tela travada.)
       setTimeout(function(){
         if(jaEntrou)return;jaEntrou=true;
-        entrarComPerfil({id:'temp',login:login,name:map.name,role:map.role,status:map.status});
+        var papel=map?map.role:'Visualizador';
+        startDbListeners(papel==='Gerente');
+        entrarComPerfil({id:'temp',login:login,email:email,name:map?map.name:email,role:papel,status:'Ativo'});
       },8000);
     })
     .catch(function(err){
-      btn.disabled=false;btn.textContent='Entrar no Sistema';
       var msg='❌ Usuário ou senha incorretos.';
-      if(err.code==='auth/too-many-requests')msg='⚠️ Muitas tentativas. Aguarde alguns minutos.';
-      if(err.code==='auth/network-request-failed')msg='⚠️ Sem conexão com a internet.';
-      errEl.textContent=msg;errEl.style.display='block';
+      if(err&&err.code==='auth/too-many-requests')msg='⚠️ Muitas tentativas. Aguarde alguns minutos.';
+      if(err&&err.code==='auth/network-request-failed')msg='⚠️ Sem conexão com a internet.';
+      falha(msg);
     });
 }
 function doLogout(){
-  addLog('user','Logout realizado','🚪');
-  auth.signOut();
+  var log=addLog('user','Logout realizado','🚪');   // grava ANTES de encerrar a sessão (as regras exigem estar logado)
   curUser=null;
   g('appScreen').style.display='none';
   g('appScreen').style.visibility='hidden';
@@ -1200,6 +1284,13 @@ function doLogout(){
   g('loginScreen').style.visibility='visible';
   g('loginScreen').style.zIndex='1';
   g('li-user').value='';g('li-pass').value='';
+  // Espera o log (no máximo 1,5 s, para não travar sem internet), encerra a sessão e RECARREGA a página:
+  // assim os dados e listeners do perfil anterior (ex.: logs do Gerente) somem da memória e quem entrar
+  // depois liga só o que o próprio perfil pode ler.
+  var espera=new Promise(function(r){setTimeout(r,1500);});
+  Promise.race([Promise.resolve(log).catch(function(){}),espera])
+    .then(function(){return auth.signOut();}).catch(function(){})
+    .then(function(){try{window.location.reload();}catch(e){}});
 }
 function applyPermUI(){
   var s=function(id,v){var e=g(id);if(e)e.style.display=v?'':'none';};
@@ -1488,6 +1579,7 @@ function exportRup(){
   dlCSV('Ruptura_CMM_'+now+'.csv',rows);
 }
 var fotoPendenteBase64=null,fotoRemoverPendente=false;
+var ePatOriginal=null;   // saldo exibido quando o modal abriu (evita regravar com valor velho)
 function opP(id){
   if(!isOp())return;ePid=id||null;g('mpt').textContent=id?'Editar Produto':'Novo Produto';
   var cs=g('pcat');cs.innerHTML=CATS.map(function(c){return'<option value="'+c+'">'+c+'</option>';}).join('');
@@ -1501,6 +1593,11 @@ function opP(id){
   }else{g('pn').value='';g('pca').value='';g('pmn').value=10;g('pmx').value=50;g('pid2').value=30;g('pat').value=0;['pb','pdp','pdi2','pf'].forEach(function(x){g(x).value=0;});g('plead').value='';
     mostrarPreviewFoto(null);
   }
+  // v1.17: preço só o Gerente altera; o saldo só é editável (por Gerente) — Operador usa uma movimentação de Ajuste
+  ePatOriginal=id?((prods.find(function(x){return x.id===id;})||{}).at||0):null;
+  ['pb','pdp','pdi2','pf'].forEach(function(x){g(x).disabled=!isG();});
+  g('pat').disabled=!!id&&!isG();
+  g('pat').title=(id&&!isG())?'Para corrigir o saldo, lance uma movimentação de Ajuste de Estoque.':'';
   g('mp').classList.add('open');
 }
 function mostrarPreviewFoto(url){
@@ -1566,24 +1663,38 @@ function svP(){
   var id=ePid||uid();
   var leadVal=g('plead').value.trim();
   var pExistente=prods.find(function(x){return x.id===id;});
-  var obj={id:id,n:nome,ca:+g('pca').value||0,cat:g('pcat').value,mn:+g('pmn').value,mx:+g('pmx').value,id2:+g('pid2').value,at:+g('pat').value,b:+g('pb').value,dp:+g('pdp').value,di:+g('pdi2').value,f:+g('pf').value,lead:leadVal?+leadVal:0};
+  var edicao=!!ePid&&!!pExistente;
+  var campos={id:id,n:nome,ca:+g('pca').value||0,cat:g('pcat').value,mn:+g('pmn').value||0,mx:+g('pmx').value||0,id2:+g('pid2').value||0,lead:leadVal?+leadVal:0};
+  if(campos.mn<0||campos.mx<0||campos.id2<0){alert('Estoque mínimo, máximo e ideal não podem ser negativos.');return;}
+  // Preços: só o Gerente grava (Operador nem envia esses campos — o servidor também recusa).
+  if(isG()){
+    campos.b=+g('pb').value||0;campos.dp=+g('pdp').value||0;campos.di=+g('pdi2').value||0;campos.f=+g('pf').value||0;
+    if(campos.b<0||campos.dp<0||campos.di<0||campos.f<0){alert('Preços não podem ser negativos.');return;}
+  }
+  // Saldo: produto novo começa com o valor informado. Em edição o saldo NÃO é regravado (poderia ser um valor velho e
+  // apagar vendas feitas enquanto o modal estava aberto); se o Gerente corrigiu o campo, aplica só a diferença.
+  if(!edicao){campos.at=+g('pat').value||0;if(campos.at<0){alert('O estoque atual não pode ser negativo.');return;}}
+  var delta=(edicao&&isG())?((+g('pat').value||0)-(ePatOriginal||0)):0;
   var btn=g('mp').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
   // Foto agora é gravada como texto base64 direto no próprio nó do produto no
   // Realtime Database — sem etapa de upload separada, sem depender do Storage/Blaze.
-  if(fotoPendenteBase64){obj.foto=fotoPendenteBase64;}
-  else if(fotoRemoverPendente){obj.foto=null;}
-  else if(pExistente&&pExistente.foto){obj.foto=pExistente.foto;} // mantém foto já existente
-  db.ref('epis/'+id).set(obj)
+  if(fotoPendenteBase64){campos.foto=fotoPendenteBase64;}
+  else if(fotoRemoverPendente){campos.foto=null;}
+  function reabilitar(){var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}}
+  db.ref('epis/'+id).update(campos)   // update (campo a campo): campos não enviados ficam como estão
+    .then(function(){return delta?ajustarEstoque(id,delta):null;})
     .then(function(){
       addLog('prod',(ePid?'Produto editado: ':'Produto criado: ')+nome,'📦');
-      var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
-      cl('mp');
+      if(delta)addLog('prod','Saldo corrigido manualmente: '+nome+' ('+(ePatOriginal||0)+' → '+((ePatOriginal||0)+delta)+')','✏️');
+      reabilitar();cl('mp');
     })
     .catch(function(err){
-      alert('Erro ao salvar produto: '+(err.message||err));
-      var b=g('mp').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
+      var m=err&&err.message;
+      alert(m==='ESTOQUE_INSUFICIENTE'?'Os dados do produto foram salvos, mas o saldo informado deixaria o estoque negativo em relação às movimentações mais recentes. Confira o saldo e tente de novo.':'Erro ao salvar produto: '+(m||err));
+      reabilitar();
     });
 }
+
 function dP(id){
   if(!isG())return;var p=prods.find(function(x){return x.id===id;});if(!p)return;
   if(confirm('Remover produto "'+p.n+'"?')){
@@ -2014,11 +2125,17 @@ function svM(){
         obj:{id:id,io:isIn?'Entrada':'Saída',cod:cod,desc:descs[cod],pid:it.pid,pn:pr.n,ca:pr.ca||0,q:nq,eid:eid,en:enNome,dt:dt,u:mu,vu:it.vu,vt:it.vt,nf:mnf,nfe:mnfe,obs:mob,pendente:pendente}};
     });
     var nomeAtual='',chain=Promise.resolve();
+    // Fase 1: saldo de TODOS os itens. Se algum falhar, os anteriores são desfeitos e nenhum registro chegou a ser gravado.
     itens.forEach(function(x){
       chain=chain
         .then(function(){nomeAtual=x.pr.n;return pendente?null:ajustarEstoque(x.pid,x.nq);})
-        .then(function(){x.aplicado=!pendente;return db.ref('movimentos/'+x.id).set(x.obj);})
-        .then(function(){x.gravado=true;});
+        .then(function(){x.aplicado=!pendente;});
+    });
+    // Fase 2: registros das movimentações.
+    chain=chain.then(function(){
+      return itens.reduce(function(p,x){
+        return p.then(function(){nomeAtual=x.pr.n;return db.ref('movimentos/'+x.id).set(x.obj);}).then(function(){x.gravado=true;});
+      },Promise.resolve());
     });
     chain
       .then(function(){
@@ -2227,15 +2344,113 @@ function rU(){
     rows+='<tr><td style="font-family:monospace;font-size:11px;color:#64748b">'+esc(u.login||'')+'</td><td style="font-weight:500;font-size:12px">'+esc(u.name||'')+(isCur?' <span style="font-size:9px;background:#d1fae5;color:#065f46;padding:1px 5px;border-radius:4px">Você</span>':'')+'</td><td><span class="badge '+(rc[u.role||'']||'bgr')+'">'+(ri[u.role||'']||'')+'  '+esc(u.role||'')+'</span></td><td><span class="badge '+(u.status==='Ativo'?'bg':'br')+'">'+esc(u.status||'')+'</span></td><td><div style="display:flex;gap:3px"><button class="ib" onclick="opUEdit(\''+u.id+'\')">✏️</button>'+(isCur?'':'<button class="ib red" onclick="dU(\''+u.id+'\')">🗑️</button>')+'</div></td></tr>';
   });g('utbl').innerHTML=rows||'<tr class="er"><td colspan="5">Nenhum usuário</td></tr>';
 }
-function opU(){eUid=null;g('muser-title').textContent='Novo Usuário';g('u-login').value='';g('u-name').value='';g('u-pass').value='';g('u-role').value='Operador';g('u-status').value='Ativo';g('muser').classList.add('open');}
-function opUEdit(id){eUid=id;var u=users.find(function(x){return x.id===id;});if(!u)return;g('muser-title').textContent='Editar Usuário';g('u-login').value=u.login||'';g('u-name').value=u.name||'';g('u-pass').value=u.pass||'';g('u-role').value=u.role||'Operador';g('u-status').value=u.status||'Ativo';g('muser').classList.add('open');}
-function svU(){
-  var login=g('u-login').value.trim(),name=g('u-name').value.trim();
-  if(!login||!name){alert('Preencha todos os campos');return;}
-  var id=eUid||uid();db.ref('usuarios/'+id).set({id:id,login:login,name:name,role:g('u-role').value,status:g('u-status').value});
-  addLog('user',(eUid?'Usuário editado: ':'Usuário criado: ')+name,'👥');cl('muser');
+function opU(){eUid=null;g('muser-title').textContent='Novo Usuário';g('u-login').value='';g('u-login').disabled=false;g('u-name').value='';g('u-pass').value='';g('u-pass').disabled=false;g('u-role').value='Operador';g('u-status').value='Ativo';
+  g('u-hint').textContent='A pessoa entra digitando este Login (ou um e-mail completo, se você digitar um e-mail aqui) e a senha definida acima — mínimo 6 caracteres. A conta de acesso é criada agora.';
+  g('muser').classList.add('open');}
+
+function opUEdit(id){eUid=id;var u=users.find(function(x){return x.id===id;});if(!u)return;g('muser-title').textContent='Editar Usuário';g('u-login').value=u.login||'';g('u-login').disabled=true;g('u-name').value=u.name||'';g('u-pass').value='';g('u-pass').disabled=true;g('u-role').value=u.role||'Operador';g('u-status').value=u.status||'Ativo';
+  g('u-hint').textContent='O login não muda. A senha não é trocada por aqui: a própria pessoa usa "🔑 Alterar senha" (menu lateral). Se ela esqueceu, apague a conta dela em Authentication (Firebase) e cadastre o usuário de novo aqui. Perfil e status valem já no próximo acesso ao banco: "Inativo" bloqueia o usuário.';
+  g('muser').classList.add('open');}
+// Cria a conta de login usando um app secundário do Firebase (assim a sessão do Gerente não é derrubada).
+function criarContaAuth(email,senha){
+  var app2=firebase.apps.filter(function(a){return a.name==='conta-nova';})[0]||firebase.initializeApp(firebaseConfig,'conta-nova');
+  var a2=app2.auth();
+  return a2.createUserWithEmailAndPassword(email,senha).then(function(){return a2.signOut();}).then(function(){return true;})
+    .catch(function(err){
+      var c=err&&err.code;
+      if(c==='auth/email-already-in-use'){
+        if(confirm('Já existe uma conta de acesso com "'+email+'".\n\nDeseja só liberar o acesso dela ao sistema? (vale a senha que ela já tem)'))return false;
+        throw new Error('CANCELADO');
+      }
+      if(c==='auth/weak-password')throw new Error('Senha fraca: use pelo menos 6 caracteres.');
+      if(c==='auth/invalid-email')throw new Error('E-mail/login inválido.');
+      if(c==='auth/operation-not-allowed')throw new Error('O login por e-mail/senha está desativado no Firebase (Authentication → Sign-in method).');
+      throw err;
+    });
 }
-function dU(id){if(curUser&&id===curUser.id){alert('Não pode excluir o usuário logado.');return;}var u=users.find(function(x){return x.id===id;});if(confirm('Remover usuário?')){db.ref('usuarios/'+id).remove();if(u)addLog('user','Usuário removido: '+u.name,'🗑️');}}
+function aplicarPapel(email,role,status){
+  var k=emailKey(email);
+  return status==='Inativo'?db.ref('papeis/'+k).remove():db.ref('papeis/'+k).set(role);
+}
+function svU(){
+  if(!isG())return;
+  var login=g('u-login').value.trim().toLowerCase(),name=g('u-name').value.trim(),role=g('u-role').value,status=g('u-status').value;
+  if(!login||!name){alert('Preencha todos os campos');return;}
+  var edicao=!!eUid,atual=edicao?users.find(function(x){return x.id===eUid;}):null;
+  if(edicao&&!atual){alert('Usuário não encontrado.');return;}
+  // nunca deixar o sistema sem Gerente ativo, nem o próprio Gerente se trancar para fora
+  var gerentes=users.filter(function(u){return u.role==='Gerente'&&u.status==='Ativo'&&(!edicao||u.id!==eUid);}).length+((role==='Gerente'&&status==='Ativo')?1:0);
+  if(gerentes<1){alert('O sistema precisa ter pelo menos um Gerente ativo.');return;}
+  if(edicao&&curUser&&eUid===curUser.id&&(role!=='Gerente'||status!=='Ativo')){alert('Você não pode remover o seu próprio acesso de Gerente.');return;}
+  var btn=g('muser').querySelector('.bp2');
+  function travar(){if(btn){btn.disabled=true;btn.textContent='Salvando...';}}
+  function fim(){if(btn){btn.disabled=false;btn.textContent='Salvar';}}
+  function erro(err){fim();if(err&&err.message==='CANCELADO')return;alert('Erro ao salvar usuário:\n'+((err&&err.message)||err));}
+  if(edicao){
+    var email=emailDoUsuario(atual);
+    var obj={id:eUid,login:atual.login,name:name,role:role,status:status};if(atual.email)obj.email=atual.email;
+    travar();
+    // cadastro primeiro, depois o papel (se o papel falhar, o sincronizador acerta no próximo login do Gerente)
+    db.ref('usuarios/'+eUid).set(obj).then(function(){return aplicarPapel(email,role,status);})
+      .then(function(){addLog('user','Usuário editado: '+name+' ('+role+' / '+status+')','👥');fim();cl('muser');}).catch(erro);
+    return;
+  }
+  if(!/^[a-z0-9._@+-]+$/.test(login)){alert('Login: use apenas letras minúsculas, números e . _ - (ou um e-mail completo).');return;}
+  var email2=emailDeLogin(login);
+  if((email2.match(/\./g)||[]).length>6){alert('Login/e-mail com pontos demais (máximo 6 pontos).');return;}
+  if(users.some(function(u){return emailDoUsuario(u)===email2;})){alert('Já existe um usuário com este login.');return;}
+  var senha=g('u-pass').value;
+  if(senha.length<6){alert('A senha precisa ter pelo menos 6 caracteres.');return;}
+  travar();
+  criarContaAuth(email2,senha).then(function(){
+    var id=uid();
+    return db.ref('usuarios/'+id).set({id:id,login:login,email:email2,name:name,role:role,status:status})
+      .then(function(){return aplicarPapel(email2,role,status);})
+      .then(function(){addLog('user','Usuário criado: '+name+' ('+role+')','👥');fim();cl('muser');});
+  }).catch(erro);
+}
+
+// Cada pessoa troca a PRÓPRIA senha (o Firebase exige confirmar a senha atual).
+function opSenha(){
+  ['ps-atual','ps-nova','ps-conf'].forEach(function(i){g(i).value='';});
+  g('ps-msg').textContent='';g('mpass').classList.add('open');
+}
+function svSenha(){
+  var atual=g('ps-atual').value,nova=g('ps-nova').value,conf=g('ps-conf').value,msg=g('ps-msg');
+  function erro(t){msg.style.color='#dc2626';msg.textContent=t;}
+  var u=auth.currentUser;
+  if(!u||!u.email){erro('Sessão expirada. Saia e entre de novo.');return;}
+  if(!atual){erro('Digite a senha atual.');return;}
+  if(nova.length<6){erro('A nova senha precisa ter pelo menos 6 caracteres.');return;}
+  if(nova!==conf){erro('A repetição não confere com a nova senha.');return;}
+  if(nova===atual){erro('A nova senha precisa ser diferente da atual.');return;}
+  var btn=g('mpass').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
+  function fim(){if(btn){btn.disabled=false;btn.textContent='Salvar';}}
+  var cred=firebase.auth.EmailAuthProvider.credential(u.email,atual);
+  u.reauthenticateWithCredential(cred).then(function(){return u.updatePassword(nova);}).then(function(){
+    fim();addLog('user','Senha alterada pelo próprio usuário','🔑');cl('mpass');alert('Senha alterada com sucesso.');
+  }).catch(function(err){
+    fim();var c=err&&err.code;
+    if(c==='auth/wrong-password'||c==='auth/invalid-credential'||c==='auth/invalid-login-credentials')erro('Senha atual incorreta.');
+    else if(c==='auth/weak-password')erro('Senha fraca: use pelo menos 6 caracteres.');
+    else if(c==='auth/too-many-requests')erro('Muitas tentativas. Aguarde alguns minutos.');
+    else if(c==='auth/network-request-failed')erro('Sem conexão com a internet.');
+    else erro('Não foi possível alterar a senha: '+((err&&err.message)||err));
+  });
+}
+
+function dU(id){
+  if(!isG())return;
+  if(curUser&&id===curUser.id){alert('Não pode excluir o usuário logado.');return;}
+  var u=users.find(function(x){return x.id===id;});if(!u)return;
+  if(u.role==='Gerente'&&u.status==='Ativo'&&users.filter(function(x){return x.role==='Gerente'&&x.status==='Ativo';}).length<=1){alert('Não é possível remover o único Gerente ativo.');return;}
+  if(!confirm('Remover "'+u.name+'"?\n\nA pessoa perde o acesso ao sistema. (A conta de login continua existindo no Firebase; se quiser, apague-a em Authentication.)'))return;
+  // revoga o acesso primeiro, depois remove o cadastro
+  db.ref('papeis/'+emailKey(emailDoUsuario(u))).remove().catch(function(){})
+    .then(function(){return db.ref('usuarios/'+id).remove();})
+    .then(function(){addLog('user','Usuário removido: '+u.name,'🗑️');})
+    .catch(function(err){alert('Erro ao remover usuário:\n'+((err&&err.message)||err));});
+}
 
 // ══════════════════════════════════════════════
 // LOG DE ATIVIDADES
@@ -2281,10 +2496,20 @@ function exportReport(){
 
 // BACKUP JSON
 function backupJSON(){
-  var data={exportedAt:new Date().toISOString(),produtos:prods,empresas:emps,movimentacoes:movs,usuarios:users.map(function(u){return{id:u.id,login:u.login,name:u.name,role:u.role,status:u.status};})};
+  var data={exportedAt:new Date().toISOString(),versao:'1.17',produtos:prods,empresas:emps,movimentacoes:movs,historico:historico,usuarios:users.map(function(u){return{id:u.id,login:u.login,name:u.name,role:u.role,status:u.status};})};
   var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='EPI_Backup_'+hojeLocalISO()+'.json';a.click();URL.revokeObjectURL(url);
+  try{localStorage.setItem('epi_ultimo_backup',hojeLocalISO());}catch(e){}
   addLog('user','Backup JSON exportado','💾');
+  atualizarInfoBackup();updateAlerts();
+}
+// Dias desde o último backup feito NESTE aparelho (null = nunca).
+function diasUltimoBackup(){var d=null;try{d=localStorage.getItem('epi_ultimo_backup');}catch(e){}return d?diasDesde(d):null;}
+function atualizarInfoBackup(){
+  var el=g('backup-info');if(!el)return;
+  var d=diasUltimoBackup();
+  el.textContent=d===null?'Nenhum backup feito neste aparelho ainda.':'Último backup neste aparelho: '+(d===0?'hoje':d===1?'ontem':'há '+d+' dias')+'.';
+  el.style.color=(d===null||d>7)?'#dc2626':'#059669';
 }
 
 // ══════════════════════════════════════════════
@@ -2510,6 +2735,7 @@ function renderBell(){
   low.forEach(function(p){alertas.push({icon:'⚠️',bg:'#fef9c3',text:'<strong>'+esc(p.n)+'</strong> — abaixo do mínimo ('+p.at+'/'+p.mn+')',time:'Monitorar'});});
   // Empresas sem comprar há +60 dias
   emps.forEach(function(e){var cm=movs.filter(function(m){return m.eid===e.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});if(!cm.length)return;var dias=diasDesde(cm[0].dt);if(dias>60)alertas.push({icon:'📅',bg:'#ede9fe',text:'<strong>'+esc(e.n)+'</strong> — sem comprar há '+dias+' dias',time:'Sugerir pedido'});});
+  if(isG()){var dBk=diasUltimoBackup();if(dBk===null||dBk>7)alertas.push({icon:'💾',bg:'#e0f2fe',text:'<strong>Backup</strong> — '+(dBk===null?'nenhum backup feito neste aparelho':'último backup há '+dBk+' dias'),time:'Usuários → Backup dos Dados'});}
   var badge=g('bell-badge'),btn=g('bell-btn');
   if(badge){badge.textContent=alertas.length;badge.style.display=alertas.length>0?'flex':'none';}
   if(alertas.length===0){g('bell-list').innerHTML='<div style="padding:20px;text-align:center;color:#94a3b8;font-size:12px">✅ Nenhum alerta no momento</div>';return;}
@@ -2596,7 +2822,7 @@ function exportEmpDash(){
 function exportPDF(){window.print();}
 
 // Atualiza alertas a cada vez que dados mudam
-function updateAlerts(){if(g('bell-panel')&&g('bell-panel').classList.contains('open'))renderBell();var alertCount=prods.filter(isBaixo).length+emps.filter(function(e){var cm=movs.filter(function(m){return m.eid===e.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});return cm.length&&diasDesde(cm[0].dt)>60;}).length;var badge=g('bell-badge');if(badge){badge.textContent=alertCount;badge.style.display=alertCount>0?'flex':'none';}}
+function updateAlerts(){if(g('bell-panel')&&g('bell-panel').classList.contains('open'))renderBell();var alertCount=prods.filter(isBaixo).length+(isG()&&(diasUltimoBackup()===null||diasUltimoBackup()>7)?1:0)+emps.filter(function(e){var cm=movs.filter(function(m){return m.eid===e.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});return cm.length&&diasDesde(cm[0].dt)>60;}).length;var badge=g('bell-badge');if(badge){badge.textContent=alertCount;badge.style.display=alertCount>0?'flex':'none';}}
 
 </script>
 </body>
