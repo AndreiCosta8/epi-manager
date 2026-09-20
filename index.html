@@ -15,7 +15,9 @@
      2) "Baixo" e "Crítico" agora têm UMA definição só (baseada no Estoque Mínimo) em menu, dashboard,
         filtro, sino e relatórios.
      3) Datas usam o fuso local (antes, depois das 21h em Parauapebas o sistema gravava o dia seguinte). -->
-<!-- v1.17 (19/09/2026): Perfis validados no servidor + usuários de verdade + produtos/preços protegidos.
+<!-- v1.17.1 (19/09/2026): remove do cadastro (usuarios) o campo antigo "pass" (senha em texto simples) — o Gerente, ao entrar,
+     apaga esse campo de todos os registros, e as regras novas impedem que volte a ser gravado. Detalhes abaixo (v1.17).
+     v1.17 (19/09/2026): Perfis validados no servidor + usuários de verdade + produtos/preços protegidos.
      1) Perfil (Gerente/Operador/Visualizador) agora fica em "papeis/<e-mail>" no banco; as regras do Firebase
         (database.rules.json) usam esse mesmo nó — a checagem deixa de existir só na tela.
      2) Tela Usuários: "Novo Usuário" cria a conta de login de verdade (com a senha digitada); "Inativo" e
@@ -1094,8 +1096,15 @@ function sincronizarPapeis(){
       if((alvo||null)!==(atual[k]||null)){ups[k]=alvo;n++;}
     });
     if(!atual[meu]&&PAPEIS_VALIDOS.indexOf(curUser.role)>=0){ups[meu]=curUser.role;n++;}
-    if(!n)return;
-    return db.ref('papeis').update(ups).then(function(){addLog('user','Permissões sincronizadas ('+n+')','🔑');});
+    // v1.17.1: versões antigas guardavam a senha em texto simples em usuarios/<id>/pass (legível por qualquer perfil).
+    // Apaga esse campo de todos os registros (as regras novas também impedem que ele volte a ser gravado).
+    var limpar=Object.keys(us||{}).filter(function(k){return us[k]&&Object.prototype.hasOwnProperty.call(us[k],'pass');});
+    var pLimpa=limpar.length?Promise.all(limpar.map(function(k){return db.ref('usuarios/'+k+'/pass').remove();}))
+      .then(function(){addLog('user','Senhas em texto simples removidas do cadastro ('+limpar.length+')','🔒');}):Promise.resolve();
+    return pLimpa.then(function(){
+      if(!n)return;
+      return db.ref('papeis').update(ups).then(function(){addLog('user','Permissões sincronizadas ('+n+')','🔑');});
+    });
   }).catch(function(e){console.warn('sincronizarPapeis:',e);});
 }
 
