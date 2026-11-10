@@ -1280,10 +1280,10 @@ td.op{white-space:nowrap}
     </div>
     <div class="ss"><div class="ssl">Tabela de preços (R$)</div>
       <div class="fg">
-        <div class="fgp"><label class="fl">Preço Base (Custo)</label><input class="fi" type="number" step="0.01" id="pb" value="0"></div>
-        <div class="fgp"><label class="fl">Preço Diretoria</label><input class="fi" type="number" step="0.01" id="pdp" value="0"></div>
-        <div class="fgp"><label class="fl">Preço Distribuidora</label><input class="fi" type="number" step="0.01" id="pdi2" value="0"></div>
-        <div class="fgp"><label class="fl">Preço Cliente Final</label><input class="fi" type="number" step="0.01" id="pf" value="0"></div>
+        <div class="fgp"><label class="fl">Preço Base (Custo)</label><input class="fi" type="text" inputmode="decimal" id="pb" value="0,00" placeholder="0,00"></div>
+        <div class="fgp"><label class="fl">Preço Diretoria</label><input class="fi" type="text" inputmode="decimal" id="pdp" value="0,00" placeholder="0,00"></div>
+        <div class="fgp"><label class="fl">Preço Distribuidora</label><input class="fi" type="text" inputmode="decimal" id="pdi2" value="0,00" placeholder="0,00"></div>
+        <div class="fgp"><label class="fl">Preço Cliente Final</label><input class="fi" type="text" inputmode="decimal" id="pf" value="0,00" placeholder="0,00"></div>
       </div>
     </div>
   </div>
@@ -1389,12 +1389,12 @@ td.op{white-space:nowrap}
   <div class="mb">
     <div class="fgp" style="margin-bottom:14px"><label class="fl">Produto</label><input class="fi" id="price-prod-name" disabled style="background:#f1f5f9;font-weight:600"></div>
     <div class="fg">
-      <div class="fgp"><label class="fl">Preço Base (Custo)</label><input class="fi" type="number" step="0.01" id="pr-b" value="0" oninput="atualizarPreviewMargem()"></div>
-      <div class="fgp"><label class="fl">Preço diretoria</label><input class="fi" type="number" step="0.01" id="pr-dp" value="0"></div>
+      <div class="fgp"><label class="fl">Preço Base (Custo)</label><input class="fi" type="text" inputmode="decimal" id="pr-b" value="0,00" placeholder="0,00" oninput="atualizarPreviewMargem()"></div>
+      <div class="fgp"><label class="fl">Preço diretoria</label><input class="fi" type="text" inputmode="decimal" id="pr-dp" value="0,00" placeholder="0,00"></div>
     </div>
     <div class="fg">
-      <div class="fgp"><label class="fl">Preço distribuidora</label><input class="fi" type="number" step="0.01" id="pr-di" value="0"></div>
-      <div class="fgp"><label class="fl">Preço cliente final</label><input class="fi" type="number" step="0.01" id="pr-f" value="0" oninput="atualizarPreviewMargem()"></div>
+      <div class="fgp"><label class="fl">Preço distribuidora</label><input class="fi" type="text" inputmode="decimal" id="pr-di" value="0,00" placeholder="0,00"></div>
+      <div class="fgp"><label class="fl">Preço cliente final</label><input class="fi" type="text" inputmode="decimal" id="pr-f" value="0,00" placeholder="0,00" oninput="atualizarPreviewMargem()"></div>
     </div>
     <div id="price-margem-preview" style="font-size:11px;color:#64748b;margin-top:4px"></div>
   </div>
@@ -1438,11 +1438,11 @@ td.op{white-space:nowrap}
     <div class="fgp"><label class="fl">Descrição (opcional)</label><input class="fi" id="hist-m-desc" placeholder="Ex: Vendas jan/26 retroativas"></div>
     <div class="fg">
       <div class="fgp"><label class="fl">Entradas (Qtd)</label><input class="fi" type="number" id="hist-m-e" value="0" min="0"></div>
-      <div class="fgp"><label class="fl">Valor Entradas (R$)</label><input class="fi" type="number" id="hist-m-ve" value="0" step="0.01" min="0"></div>
+      <div class="fgp"><label class="fl">Valor Entradas (R$)</label><input class="fi" type="text" inputmode="decimal" id="hist-m-ve" value="0,00" placeholder="0,00"></div>
     </div>
     <div class="fg">
       <div class="fgp"><label class="fl">Saídas (Qtd)</label><input class="fi" type="number" id="hist-m-s" value="0" min="0"></div>
-      <div class="fgp"><label class="fl">Valor Saídas (R$)</label><input class="fi" type="number" id="hist-m-vs" value="0" step="0.01" min="0"></div>
+      <div class="fgp"><label class="fl">Valor Saídas (R$)</label><input class="fi" type="text" inputmode="decimal" id="hist-m-vs" value="0,00" placeholder="0,00"></div>
     </div>
     <div class="al al-b" style="font-size:11px;margin-top:4px">Se já existe registro para este mês/ano, ele será <strong>somado</strong> ao existente.</div>
   </div>
@@ -2990,10 +2990,10 @@ function opP(id){
   if(id){var p=prods.find(function(x){return x.id===id;});if(!p)return;
     g('pn').value=p.n||'';g('pca').value=p.ca||'';cs.value=p.cat||'Luvas';
     g('pmn').value=p.mn||0;g('pmx').value=p.mx||0;g('pid2').value=p.id2||0;g('pat').value=p.at||0;
-    g('pb').value=p.b||0;g('pdp').value=p.dp||0;g('pdi2').value=p.di||0;g('pf').value=p.f||0;
+    g('pb').value=fmtPI(p.b);g('pdp').value=fmtPI(p.dp);g('pdi2').value=fmtPI(p.di);g('pf').value=fmtPI(p.f);
     g('plead').value=p.lead||'';
     mostrarPreviewFoto(p.foto||null);
-  }else{g('pn').value='';g('pca').value='';g('pmn').value=10;g('pmx').value=50;g('pid2').value=30;g('pat').value=0;['pb','pdp','pdi2','pf'].forEach(function(x){g(x).value=0;});g('plead').value='';
+  }else{g('pn').value='';g('pca').value='';g('pmn').value=10;g('pmx').value=50;g('pid2').value=30;g('pat').value=0;['pb','pdp','pdi2','pf'].forEach(function(x){g(x).value='0,00';});g('plead').value='';
     mostrarPreviewFoto(null);
   }
   // v1.17: preço só o Gerente altera; o saldo só é editável (por Gerente) — Operador usa uma movimentação de Ajuste
@@ -3061,6 +3061,14 @@ function removerFoto(){
   mostrarPreviewFoto(null);
   g('pfoto-status').textContent='Foto será removida ao salvar.';
 }
+// Aceita "1.314,00" (pt-BR) ou "1314.00" (padrão) → número
+function parseBRL(v){
+  var s=String(v||'').trim().replace(/R\$\s*/g,'').replace(/\s/g,'');
+  if(s.indexOf(',')!==-1){s=s.replace(/\./g,'').replace(',','.');}
+  var n=parseFloat(s);return isNaN(n)?0:n;
+}
+// Número → string para exibição nos inputs de preço ("134,47")
+function fmtPI(v){var n=parseFloat(v)||0;return n.toFixed(2).replace('.',',');}
 function svP(){
   var nome=g('pn').value.trim();if(!nome){alert('Informe o nome');return;}
   var id=ePid||uid();
@@ -3071,7 +3079,7 @@ function svP(){
   if(campos.mn<0||campos.mx<0||campos.id2<0){alert('Estoque mínimo, máximo e ideal não podem ser negativos.');return;}
   // Preços: só o Gerente grava (Operador nem envia esses campos — o servidor também recusa).
   if(isG()){
-    campos.b=+g('pb').value||0;campos.dp=+g('pdp').value||0;campos.di=+g('pdi2').value||0;campos.f=+g('pf').value||0;
+    campos.b=parseBRL(g('pb').value);campos.dp=parseBRL(g('pdp').value);campos.di=parseBRL(g('pdi2').value);campos.f=parseBRL(g('pf').value);
     if(campos.b<0||campos.dp<0||campos.di<0||campos.f<0){alert('Preços não podem ser negativos.');return;}
   }
   // Saldo: produto novo começa com o valor informado. Em edição o saldo NÃO é regravado (poderia ser um valor velho e
@@ -3174,7 +3182,7 @@ function renderItens(){
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">'
       +'<div class="fgp"><label class="fl">Qty</label><input class="fi" type="number" min="1" value="'+(it.qty||1)+'" onchange="itemChange('+idx+',\'qty\',+this.value)"></div>'
       +'<div class="fgp"><label class="fl">Modalidade</label><select class="fi" onchange="itemModChange('+idx+',this.value)"><option value="manual"'+(it.mod==='manual'?' selected':'')+'>Manual</option><option value="b"'+(it.mod==='b'?' selected':'')+'>Base</option><option value="dp"'+(it.mod==='dp'?' selected':'')+'>Diretoria</option><option value="di"'+(it.mod==='di'?' selected':'')+'>Distribuidora</option><option value="f"'+(it.mod==='f'?' selected':'')+'>Cli. Final</option></select></div>'
-      +'<div class="fgp"><label class="fl">Vl. Unit. (R$)</label><input class="fi" type="number" step="0.01" value="'+(it.vu||0)+'" onchange="itemChange('+idx+',\'vu\',+this.value)"></div>'
+      +'<div class="fgp"><label class="fl">Vl. Unit. (R$)</label><input class="fi" type="text" inputmode="decimal" placeholder="0,00" value="'+fmtPI(it.vu||0)+'" onchange="itemChange('+idx+',\'vu\',parseBRL(this.value))"></div>'
       +'<div class="fgp"><label class="fl">Vl. Total</label><input class="fi" value="'+brl(it.vt||0)+'" readonly style="background:#f0fdf4;color:#059669;font-weight:600"></div></div>';
     lista.appendChild(div);
   });
@@ -3465,19 +3473,19 @@ function edPR(id){
   ePRid=id;
   g('price-title').textContent='Editar Preços — '+p.n;
   g('price-prod-name').value=p.n;
-  g('pr-b').value=p.b||0;g('pr-dp').value=p.dp||0;g('pr-di').value=p.di||0;g('pr-f').value=p.f||0;
+  g('pr-b').value=fmtPI(p.b);g('pr-dp').value=fmtPI(p.dp);g('pr-di').value=fmtPI(p.di);g('pr-f').value=fmtPI(p.f);
   atualizarPreviewMargem();
   g('m-price').classList.add('open');
 }
 function atualizarPreviewMargem(){
-  var b=+g('pr-b').value||0,f=+g('pr-f').value||0;
+  var b=parseBRL(g('pr-b').value),f=parseBRL(g('pr-f').value);
   var mg=b>0?Math.round((f-b)/b*100):0;
   g('price-margem-preview').textContent=b>0?('Margem Base → Cliente Final: '+mg+'% ('+brl(f-b)+' por unidade)'):'Informe o preço base para calcular a margem.';
 }
 function svPR(){
   if(!isG()||!ePRid)return;
   var p=prods.find(function(x){return x.id===ePRid;});if(!p)return;
-  var b=+g('pr-b').value||0,dp=+g('pr-dp').value||0,di=+g('pr-di').value||0,f=+g('pr-f').value||0;
+  var b=parseBRL(g('pr-b').value),dp=parseBRL(g('pr-dp').value),di=parseBRL(g('pr-di').value),f=parseBRL(g('pr-f').value);
   var btn=g('m-price').querySelector('.bp2');if(btn){btn.disabled=true;btn.textContent='Salvando...';}
   db.ref('epis/'+ePRid).update({b:b,dp:dp,di:di,f:f})
     .then(function(){
@@ -3744,7 +3752,7 @@ inicializarObserverTabelasResponsivas();
 var eHistId=null;
 function opHistModal(){
   g('hist-modal-title').textContent='Adicionar Histórico Mensal';
-  g('hist-m-e').value=0;g('hist-m-s').value=0;g('hist-m-ve').value=0;g('hist-m-vs').value=0;g('hist-m-desc').value='';
+  g('hist-m-e').value=0;g('hist-m-s').value=0;g('hist-m-ve').value='0,00';g('hist-m-vs').value='0,00';g('hist-m-desc').value='';
   g('m-hist').classList.add('open');
 }
 function svHist(){
@@ -3753,8 +3761,8 @@ function svHist(){
   var desc=g('hist-m-desc').value.trim();
   var e=parseFloat(g('hist-m-e').value)||0;
   var s=parseFloat(g('hist-m-s').value)||0;
-  var ve=parseFloat(g('hist-m-ve').value)||0;
-  var vs=parseFloat(g('hist-m-vs').value)||0;
+  var ve=parseBRL(g('hist-m-ve').value);
+  var vs=parseBRL(g('hist-m-vs').value);
   if(e===0&&s===0&&ve===0&&vs===0){alert('Informe ao menos um valor maior que zero.');return;}
   // Check if entry for this month/year already exists — if so, sum
   var existing=historico.find(function(h){return h.ano===ano&&h.mes===mes;});
