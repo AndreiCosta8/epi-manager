@@ -1054,10 +1054,10 @@ td.op{white-space:nowrap}
 <div class="pg" id="pg-movements">
   <div class="toolbar">
     <div class="sr"><span class="sri"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.34-4.34"/> <circle cx="11" cy="11" r="8"/></svg></span><input type="text" id="ms" placeholder="Buscar produto, empresa ou NF" oninput="rM()"></div>
-    <select id="mi" onchange="rM()"><option value="">Todos</option><option>Entrada</option><option>Saída</option></select>
-    <select id="mprod" onchange="rM()"><option value="">Todos os produtos</option></select>
-    <select id="many" onchange="rM();updMonths()"><option value="">Todos os anos</option><option value="2025">2025</option><option value="2026">2026</option></select>
-    <select id="mmes" onchange="rM()"><option value="">Todos os meses</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
+    <select id="mi" onchange="saveMFilt();rM()"><option value="">Todos</option><option>Entrada</option><option>Saída</option></select>
+    <select id="mprod" onchange="saveMFilt();rM()"><option value="">Todos os produtos</option></select>
+    <select id="many" onchange="saveMFilt();rM();updMonths()"><option value="">Todos os anos</option><option value="2025">2025</option><option value="2026">2026</option></select>
+    <select id="mmes" onchange="saveMFilt();rM()"><option value="">Todos os meses</option><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select>
     <div class="tb-spacer"></div>
     <button class="btn bexp bsm" onclick="exportCSV('movements')"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/> <path d="m7 10 5 5 5-5"/></svg>CSV</button>
     <button class="btn bd2 bsm" id="btn-delall" onclick="delAllMovs()" style="display:none"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 11v6"/> <path d="M14 11v6"/> <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/> <path d="M3 6h18"/> <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Excluir tudo</button>
@@ -1066,6 +1066,13 @@ td.op{white-space:nowrap}
   </div>
   <div class="strip" id="mstats"></div>
   <div class="card"><div class="tscroll"><table class="tbl-responsive"><thead><tr><th>Data</th><th>Tipo</th><th>Operação</th><th>Produto</th><th>Empresa</th><th class="num-r">Qtd</th><th class="num-r">Valor unit.</th><th class="num-r">Valor total</th><th>NF</th><th id="th-acoes" style="display:none">Ações</th></tr></thead><tbody id="mtbl"></tbody></table></div></div>
+  <div id="mov-pagination" style="display:none;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b">
+    <span id="mov-page-info"></span>
+    <div style="display:flex;gap:8px">
+      <button class="btn bs2 bsm" id="btn-pag-prev" onclick="movPagChange(-1)">← Anterior</button>
+      <button class="btn bs2 bsm" id="btn-pag-next" onclick="movPagChange(1)">Próximo →</button>
+    </div>
+  </div>
 </div>
 
 <!-- PREÇOS -->
@@ -1077,7 +1084,7 @@ td.op{white-space:nowrap}
     <div class="tb-spacer"></div>
     <button class="btn bexp bsm" onclick="exportCSV('prices')"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/> <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/> <path d="m7 10 5 5 5-5"/></svg>CSV</button>
   </div>
-  <div class="card"><div class="tscroll"><table class="tbl-responsive"><thead><tr><th>Produto</th><th class="num-r">Custo</th><th class="num-r">Diretoria</th><th class="num-r">Distribuidora</th><th class="num-r">Cliente final</th><th>Margem sobre o custo</th><th></th></tr></thead><tbody id="prtbl"></tbody></table></div></div>
+  <div class="card"><div class="tscroll"><table class="tbl-responsive"><thead><tr><th>Produto</th><th class="num-r">Custo</th><th class="num-r">Diretoria</th><th class="num-r">Distribuidora</th><th class="num-r">Cliente final</th><th>Margem sobre o custo</th><th class="num-r" title="Estoque mínimo desejado">Mín.</th><th></th></tr></thead><tbody id="prtbl"></tbody></table></div></div>
 </div>
 
 
@@ -1369,10 +1376,17 @@ td.op{white-space:nowrap}
             <option value="DES-">(-) Descarte</option>
           </select>
         </div>
-        <div class="fgp"><label class="fl">Data</label><input class="fi" type="date" id="mdt"></div>
+        <div class="fgp"><label class="fl">Data <span style="font-weight:400;color:#94a3b8;font-size:11px">(pode ser retroativa)</span></label><input class="fi" type="date" id="mdt"></div>
       </div>
       <div class="fg" style="margin-top:10px">
-        <div class="fgp"><label class="fl" id="lbl-mem">Empresa / Cliente</label><select class="fi" id="mem"></select></div>
+        <div class="fgp"><label class="fl" id="lbl-mem">Empresa / Cliente</label>
+          <div style="position:relative">
+            <input class="fi" id="mem-search" placeholder="Buscar empresa..." oninput="filterEmpSearch()" onfocus="filterEmpSearch()" autocomplete="off" style="padding-right:30px">
+            <input type="hidden" id="mem">
+            <div id="mem-list" style="display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.13);z-index:9999;max-height:220px;overflow-y:auto"></div>
+          </div>
+          <div id="empresa-resumo" style="display:none;margin-top:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:9px 12px;font-size:12px;color:#166534"></div>
+        </div>
         <div class="fgp"><label class="fl">Usuário Responsável</label><input class="fi" id="mu"></div>
       </div>
       <div class="fg" style="margin-top:10px">
@@ -1432,6 +1446,21 @@ td.op{white-space:nowrap}
     <div id="ps-msg" style="font-size:11px;margin-top:10px;color:#dc2626;line-height:1.5"></div>
   </div>
   <div class="mf"><button class="btn bs2" onclick="cl('mpass')">Cancelar</button><button class="btn bp2" onclick="svSenha()">Salvar</button></div>
+</div></div>
+
+<!-- Modal de Confirmação -->
+<div class="mbg" id="m-confirm"><div class="modal" style="max-width:420px">
+  <div class="mh"><h3 id="m-confirm-title">Confirmar exclusão</h3><button class="ib" onclick="cl('m-confirm')"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/> <path d="m6 6 12 12"/></svg></button></div>
+  <div class="mb">
+    <div style="display:flex;align-items:flex-start;gap:14px;padding:4px 0">
+      <div style="width:40px;height:40px;border-radius:10px;background:#fef2f2;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg class="ico" viewBox="0 0 24 24" style="color:#dc2626" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></div>
+      <div>
+        <div id="m-confirm-msg" style="font-size:14px;color:#1e293b;line-height:1.6"></div>
+        <div id="m-confirm-extra" style="font-size:12px;color:#94a3b8;margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="mf"><button class="btn bs2" onclick="cl('m-confirm')">Cancelar</button><button class="btn bd2" id="m-confirm-btn" onclick="doConfirm()">Excluir</button></div>
 </div></div>
 
 <!-- Modal Edição de Preços -->
@@ -1967,7 +1996,7 @@ function nav(id,el){
   g('ptitle').textContent=t[id]||id;
   closeSidebar();applyPermUI();
   if(id==='dashboard')rD();if(id==='products')rP();if(id==='ruptura')rRup();if(id==='companies')rE();
-  if(id==='movements')rM();if(id==='prices')rPR();if(id==='reports')rR();if(id==='fechamento')rFech();
+  if(id==='movements'){restoreMFilt();rM();}if(id==='prices')rPR();if(id==='reports')rR();if(id==='fechamento')rFech();
   if(id==='users')rU();if(id==='logs')rLogs();if(id==='hist')rHist();if(id==='comissao')rComissao();if(id==='emp-dash'&&curEmpDash)rEmpDash(curEmpDash);
 }
 function stab(id,el){
@@ -2057,8 +2086,13 @@ function rP(){
   }
   var rows='';
   list.forEach(function(p){
+    var ultSaida=movs.filter(function(m){return m.pid===p.id&&m.io==='Saída';}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;})[0];
+    var diasSemSaida=ultSaida?diasDesde(ultSaida.dt):null;
+    var pillSemSaida='';
+    if(diasSemSaida===null&&(p.at||0)>0)pillSemSaida='<span class="pill baixo" title="Nunca teve saída">sem saída</span>';
+    else if(diasSemSaida!==null&&diasSemSaida>=60)pillSemSaida='<span class="pill baixo" title="Última saída há '+diasSemSaida+' dias">'+diasSemSaida+'d sem saída</span>';
     rows+='<tr'+(isCritico(p)?' class="crit-row"':'')+'><td>'+fotoMini(p)+'</td>'
-      +'<td><div class="cell-name">'+esc(p.n||'')+pillCA(p)+'</div>'+(p.ca?'<div class="cell-sub">CA '+esc(String(p.ca))+(p.vca?' · val. '+new Date(p.vca+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}):'')+'</div>':'')+'</td>'
+      +'<td><div class="cell-name">'+esc(p.n||'')+pillCA(p)+pillSemSaida+'</div>'+(p.ca?'<div class="cell-sub">CA '+esc(String(p.ca))+(p.vca?' · val. '+new Date(p.vca+'T00:00:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'}):'')+'</div>':'')+'</td>'
       +'<td><span class="pill neutro">'+esc(p.cat||'')+'</span></td>'
       +'<td style="width:100px"><div class="gtxt"><b>'+nUn(p.at)+'</b> de '+nUn(p.mx)+' · mín. '+nUn(p.mn)+'</div>'+gauge(p)+'</td>'
       +'<td>'+pillSit(p)+'</td>'
@@ -2178,8 +2212,21 @@ function rM(){
     +'<div class="st"><span class="st-l">Total vendido</span><span class="st-v">'+brl(vT)+'</span><span class="st-s">todas as saídas registradas</span></div>'
     +'<div class="st'+(pend.length?' warn':'')+'"><span class="st-l">Em trânsito (fábrica)</span><span class="st-v">'+nUn(qtdPend)+'</span><span class="st-s">'+(pend.length?brl(vTPend)+' · '+pend.length+' pedido'+(pend.length===1?'':'s'):'nenhum pedido a caminho')+'</span></div>';
   var hasA=isG();g('th-acoes').style.display=hasA?'':'none';
+  // Paginação
+  var total=list.length,pages=Math.ceil(total/MOV_PER_PAGE)||1;
+  if(movPage>=pages)movPage=pages-1;
+  var paged=list.slice(movPage*MOV_PER_PAGE,(movPage+1)*MOV_PER_PAGE);
+  var pagEl=g('mov-pagination');
+  if(pagEl){
+    if(total>MOV_PER_PAGE){
+      pagEl.style.display='flex';
+      g('mov-page-info').textContent='Mostrando '+(movPage*MOV_PER_PAGE+1)+'–'+Math.min((movPage+1)*MOV_PER_PAGE,total)+' de '+total+' movimentações';
+      g('btn-pag-prev').disabled=movPage===0;
+      g('btn-pag-next').disabled=movPage>=pages-1;
+    }else{pagEl.style.display='none';}
+  }
   var rows='';
-  list.forEach(function(m){
+  paged.forEach(function(m){
     var isPend=!!m.pendente,ent2=m.io==='Entrada';
     var ac=hasA?'<td class="acts-c"><div class="acts">'+(isPend?acao('ok','confirmarRecebimento(\''+m.id+'\')','Confirmar recebimento','package-check'):'')+acao('','opMEdit(\''+m.id+'\')','Editar','pencil')+acao('red','dMov(\''+m.id+'\')','Excluir','trash-2')+'</div></td>':'';
     rows+='<tr class="'+(isPend?'pend':'')+'"><td class="cell-sub num-r" style="margin:0;text-align:left">'+fmtDt(m.dt)+'</td>'
@@ -2209,15 +2256,17 @@ function rPR(){
   list.forEach(function(p){
     var tem=(p.b||0)>0,mg=(tem&&(p.f||0)>0)?Math.round(((p.f||0)-(p.b||0))/(p.b||1)*100):null;
     var btn=isG()?'<button class="btn bs2 bsm" onclick="edPR(\''+p.id+'\')">'+ico('pencil')+'Editar</button>':'<span class="cell-sub">—</span>';
+    var mnInput=isG()?'<input type="number" min="0" step="1" value="'+(p.mn||0)+'" style="width:70px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;text-align:right" onchange="svMnInline(\''+p.id+'\',this.value)" title="Estoque mínimo">':'<span class="cell-sub">'+nUn(p.mn)+'</span>';
     rows+='<tr><td><div class="cell-name">'+esc(p.n||'')+'</div><div class="cell-sub">'+esc(p.cat||'')+'</div></td>'
       +'<td class="num-r">'+(tem?'<span class="tier">'+brl(p.b)+'</span>':'<span class="pill baixo">sem custo</span>')+'</td>'
       +'<td class="num-r"><span class="tier'+((p.dp||0)>0?'':' mute')+'">'+brl(p.dp)+'</span></td>'
       +'<td class="num-r"><span class="tier'+((p.di||0)>0?'':' mute')+'">'+brl(p.di)+'</span></td>'
       +'<td class="num-r"><span class="tier'+((p.f||0)>0?'':' mute')+'" style="font-weight:650">'+brl(p.f)+'</span></td>'
       +'<td>'+(mg===null?'<span class="cell-sub">—</span>':'<div class="margin-cell"><span class="gtxt"><b>'+mg+'%</b></span><div class="gauge"><i style="width:'+Math.min(100,Math.round(mg/2))+'%;background:var(--mata)"></i></div></div>')+'</td>'
+      +'<td class="num-r">'+mnInput+'</td>'
       +'<td class="acts-c"><div class="acts">'+btn+'</div></td></tr>';
   });
-  g('prtbl').innerHTML=rows||'<tr class="er"><td colspan="7">Nenhum produto encontrado.</td></tr>';
+  g('prtbl').innerHTML=rows||'<tr class="er"><td colspan="8">Nenhum produto encontrado.</td></tr>';
 }
 
 // ══════════════════════════════════════════════
@@ -3169,11 +3218,9 @@ function svP(){
 
 function dP(id){
   if(!isG())return;var p=prods.find(function(x){return x.id===id;});if(!p)return;
-  if(confirm('Remover produto "'+p.n+'"?')){
-    // Foto vive dentro do próprio nó do produto no RTDB agora, então remove()
-    // já apaga tudo junto — não há mais um arquivo separado no Storage para limpar.
+  showConfirm('Remover produto','Tem certeza que deseja excluir o produto <strong>'+esc(p.n)+'</strong>?','Esta ação não pode ser desfeita.',function(){
     db.ref('epis/'+id).remove();addLog('prod','Produto removido: '+p.n,'🗑️');
-  }
+  });
 }
 
 // FICHA DO PRODUTO
@@ -3209,7 +3256,7 @@ function svE(){
       var b=g('me').querySelector('.bp2');if(b){b.disabled=false;b.textContent='Salvar';}
     });
 }
-function dE(id){if(!isG())return;var c=emps.find(function(x){return x.id===id;});if(!c)return;if(confirm('Remover empresa "'+c.n+'"?')){db.ref('empresas/'+id).remove();addLog('emp','Empresa removida: '+c.n,'🗑️');}}
+function dE(id){if(!isG())return;var c=emps.find(function(x){return x.id===id;});if(!c)return;showConfirm('Remover empresa','Tem certeza que deseja excluir a empresa <strong>'+esc(c.n)+'</strong>?','O histórico de movimentações desta empresa será mantido.',function(){db.ref('empresas/'+id).remove();addLog('emp','Empresa removida: '+c.n,'🗑️');});}
 
 // FICHA DO CLIENTE
 function opCliente(eid){
@@ -3258,9 +3305,9 @@ function itemChange(idx,field,val){itensMov[idx][field]=val;itensMov[idx].vt=(it
 
 function delAllMovs(){
   if(!isG())return;if(!movs.length){alert('Não há movimentações.');return;}
-  var resp=prompt('⚠️ Excluir TODAS as '+movs.length+' movimentações?\n\nEsta ação NÃO pode ser desfeita!\n\nDigite "CONFIRMAR":');
-  if(resp!=='CONFIRMAR'){alert('Operação cancelada.');return;}
-  db.ref('movimentos').remove();addLog('mov','TODAS as movimentações foram excluídas','🗑️');
+  showConfirm('Excluir TODAS as movimentações','Tem certeza que deseja excluir <strong>todas as '+movs.length+' movimentações</strong>?','⚠️ Esta ação NÃO pode ser desfeita! Os estoques não serão revertidos.',function(){
+    db.ref('movimentos').remove();addLog('mov','TODAS as movimentações foram excluídas','🗑️');
+  },'Excluir tudo');
 }
 function updMonths(){g('mmes').value='';}
 
@@ -3274,19 +3321,24 @@ function togglePendenteUI(){
   if(!isCompra&&g('mpendente'))g('mpendente').checked=false;
 
   // Numa Aquisição/Compra, o destino da mercadoria é a própria loja, não um cliente —
-  // então trocamos o select de "Empresa/Cliente" por uma opção fixa de loja própria,
+  // então trocamos o autocomplete de "Empresa/Cliente" por uma opção fixa de loja própria,
   // e o protagonismo passa para o campo Emitente/Fornecedor (quem está vendendo pra nós).
-  var lblMem=g('lbl-mem'),lblFornecedor=g('lbl-mnfe'),selMem=g('mem');
+  var lblMem=g('lbl-mem'),lblFornecedor=g('lbl-mnfe');
+  var memSearch=g('mem-search'),memHidden=g('mem');
   if(isCompra){
     if(lblMem)lblMem.textContent='Destino';
     if(lblFornecedor)lblFornecedor.textContent='Emitente / Fornecedor (fábrica) *';
-    if(selMem){selMem.innerHTML='<option value="'+DESTINO_LOJA_ID+'">'+DESTINO_LOJA_NOME+'</option>';selMem.value=DESTINO_LOJA_ID;selMem.disabled=true;}
+    if(memSearch){memSearch.value=DESTINO_LOJA_NOME;memSearch.disabled=true;}
+    if(memHidden)memHidden.value=DESTINO_LOJA_ID;
+    var er=g('empresa-resumo');if(er)er.style.display='none';
   }else{
     if(lblMem)lblMem.textContent='Empresa / Cliente';
     if(lblFornecedor)lblFornecedor.textContent='Emitente / Fornecedor';
-    if(selMem){
-      selMem.disabled=false;
-      selMem.innerHTML=emps.slice().sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');}).map(function(c){return'<option value="'+c.id+'">'+esc(c.n||'')+'</option>';}).join('');
+    if(memSearch){memSearch.disabled=false;}
+    // Pre-select first empresa if none selected
+    if(memHidden&&!memHidden.value&&emps.length){
+      var first=emps.slice().sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');})[0];
+      memHidden.value=first.id;if(memSearch)memSearch.value=first.n||'';
     }
   }
 }
@@ -3299,6 +3351,9 @@ function opM(){
   g('mu').value=curUser?curUser.name:'';
   g('mtp').value='RET-';
   if(g('mpendente'))g('mpendente').checked=false;
+  if(g('mem'))g('mem').value='';
+  if(g('mem-search'))g('mem-search').value='';
+  if(g('empresa-resumo'))g('empresa-resumo').style.display='none';
   togglePendenteUI();
   itensMov=[{pid:prods[0]?prods[0].id:'',qty:1,mod:'manual',vu:0,vt:0}];
   renderItens();g('mm').classList.add('open');
@@ -3308,8 +3363,16 @@ function opMEdit(id){
   g('mm-title').textContent='Editar Movimentação';
   g('mtp').value=m.cod||'RET-';g('mdt').value=m.dt||'';g('mu').value=m.u||'';
   g('mob').value=m.obs||'';g('mnf').value=m.nf||'';g('mnfe').value=m.nfe||'';
+  if(g('mem'))g('mem').value='';
+  if(g('mem-search'))g('mem-search').value='';
+  if(g('empresa-resumo'))g('empresa-resumo').style.display='none';
   togglePendenteUI();
-  if(g('mtp').value!=='AQU+'&&m.eid)g('mem').value=m.eid;
+  if(g('mtp').value!=='AQU+'&&m.eid){
+    g('mem').value=m.eid;
+    var emp2=emps.find(function(x){return x.id===m.eid;});
+    if(g('mem-search'))g('mem-search').value=emp2?emp2.n||'':m.en||'';
+    mostrarResumoEmpresa(m.eid);
+  }
   if(g('mpendente'))g('mpendente').checked=!!m.pendente;
   itensMov=[{pid:m.pid||'',qty:Math.abs(m.q||1),mod:'manual',vu:m.vu||0,vt:m.vt||0}];
   renderItens();g('mm').classList.add('open');
@@ -3355,22 +3418,23 @@ function msgErroEstoque(err,nome){
 }
 
 function dMov(id){
-  if(!isG())return;if(!confirm('Excluir esta movimentação?'))return;
-  var m=movs.find(function(x){return x.id===id;});
-  if(!m)return;
-  // Se a movimentação já tinha entrado no estoque (não estava pendente), reverte o saldo ANTES de apagar.
-  // Se a reversão for recusada/cancelada, a movimentação não é apagada (nada fica pela metade).
-  var temEfeito=!!(m.pid&&!m.pendente&&m.q);
-  var rev=temEfeito?desfazerEstoque(m.pid,-(m.q||0)):Promise.resolve();
-  rev.then(function(){return db.ref('movimentos/'+id).remove().catch(function(err){
-      if(temEfeito)ajustarEstoque(m.pid,(m.q||0),true).catch(function(){});   // remoção falhou: devolve o saldo
-      throw err;
-    });})
-    .then(function(){addLog('mov','Movimentação excluída: '+m.pn+' ('+m.io+')');})
-    .catch(function(err){
-      if(err&&err.message==='CANCELADO')return;
-      alert('Erro ao excluir:\n'+((err&&err.message)||err));
-    });
+  if(!isG())return;
+  var m2=movs.find(function(x){return x.id===id;});if(!m2)return;
+  showConfirm('Excluir movimentação','Deseja excluir a movimentação de <strong>'+esc(m2.pn||'')+'</strong> ('+esc(m2.io||'')+', '+fmtDt(m2.dt)+')?','O estoque será revertido automaticamente.',function(){
+    var m=movs.find(function(x){return x.id===id;});
+    if(!m)return;
+    var temEfeito=!!(m.pid&&!m.pendente&&m.q);
+    var rev=temEfeito?desfazerEstoque(m.pid,-(m.q||0)):Promise.resolve();
+    rev.then(function(){return db.ref('movimentos/'+id).remove().catch(function(err){
+        if(temEfeito)ajustarEstoque(m.pid,(m.q||0),true).catch(function(){});
+        throw err;
+      });})
+      .then(function(){addLog('mov','Movimentação excluída: '+m.pn+' ('+m.io+')');})
+      .catch(function(err){
+        if(err&&err.message==='CANCELADO')return;
+        alert('Erro ao excluir:\n'+((err&&err.message)||err));
+      });
+  });
 }
 
 // Confirma que um pedido em trânsito chegou na loja: soma ao estoque,
@@ -3979,6 +4043,88 @@ function pillCA(p){
 // ══════════════════════════════════════════════
 var cs=g('pc');CATS.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;cs.appendChild(o);});
 g('dchip').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
+// ══════════════════════════════════════════════
+// MELHORIAS — Modal de confirmação
+// ══════════════════════════════════════════════
+var _confirmCb=null;
+function showConfirm(title,msg,extra,cb,btnTxt){
+  g('m-confirm-title').textContent=title;
+  g('m-confirm-msg').innerHTML=msg;
+  g('m-confirm-extra').textContent=extra||'';
+  g('m-confirm-btn').textContent=btnTxt||'Excluir';
+  _confirmCb=cb;
+  g('m-confirm').classList.add('open');
+}
+function doConfirm(){
+  cl('m-confirm');
+  if(_confirmCb){var f=_confirmCb;_confirmCb=null;f();}
+}
+
+// ══════════════════════════════════════════════
+// MELHORIAS — Estoque mínimo inline na tabela de preços
+// ══════════════════════════════════════════════
+function svMnInline(pid,val){
+  if(!isG())return;
+  var mn=parseInt(val,10);if(isNaN(mn)||mn<0)mn=0;
+  db.ref('epis/'+pid+'/mn').set(mn);
+}
+
+// ══════════════════════════════════════════════
+// MELHORIAS — Autocomplete de empresa no modal de movimentação
+// ══════════════════════════════════════════════
+function filterEmpSearch(){
+  var q=(g('mem-search').value||'').toLowerCase();
+  var list=emps.slice().sort(function(a,b){return(a.n||'').localeCompare(b.n||'','pt-BR');})
+    .filter(function(e){return !q||(e.n||'').toLowerCase().includes(q);});
+  var el=g('mem-list');
+  if(!list.length){el.style.display='none';return;}
+  el.innerHTML=list.map(function(e){
+    return'<div onclick="selEmp(\''+e.id+'\',\''+esc(e.n||'')+'\');" style="padding:9px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;color:#1e293b" onmouseover="this.style.background=\'#f8fafc\'" onmouseout="this.style.background=\'\'">'+esc(e.n||'')+'</div>';
+  }).join('');
+  el.style.display='block';
+}
+function selEmp(id,name){
+  g('mem').value=id;
+  g('mem-search').value=name;
+  g('mem-list').style.display='none';
+  mostrarResumoEmpresa(id);
+}
+function mostrarResumoEmpresa(eid){
+  var el=g('empresa-resumo');if(!el)return;
+  if(!eid||eid===DESTINO_LOJA_ID){el.style.display='none';return;}
+  var cm=movs.filter(function(m){return m.eid===eid&&!m.pendente;}).sort(function(a,b){return(b.dt||'')>(a.dt||'')?1:-1;});
+  if(!cm.length){el.innerHTML='<span style="color:#64748b">Nenhuma movimentação registrada para esta empresa.</span>';el.style.display='block';return;}
+  var ult=cm[0];var dias=diasDesde(ult.dt);
+  var vtTotal=cm.reduce(function(s,m){return s+(m.vt||0);},0);
+  el.innerHTML='<strong>Último pedido:</strong> '+fmtDt(ult.dt)+' ('+dias+' dias atrás) · <strong>'+esc(ult.pn||'')+'</strong>'
+    +'<br><span style="color:#166534">Total acumulado: <strong>'+brl(vtTotal)+'</strong> em '+cm.length+' movimentação'+(cm.length===1?'':'s')+'</span>';
+  el.style.display='block';
+}
+// Fecha o dropdown ao clicar fora
+document.addEventListener('click',function(e){
+  var ml=g('mem-list');if(ml&&ml.style.display==='block'&&!ml.contains(e.target)&&e.target.id!=='mem-search')ml.style.display='none';
+});
+
+// ══════════════════════════════════════════════
+// MELHORIAS — Paginação de movimentações
+// ══════════════════════════════════════════════
+var movPage=0;var MOV_PER_PAGE=100;
+function movPagChange(dir){movPage=Math.max(0,movPage+dir);rM();}
+
+// ══════════════════════════════════════════════
+// MELHORIAS — Filtros persistentes de movimentações
+// ══════════════════════════════════════════════
+function saveMFilt(){
+  try{var f={mi:g('mi').value,many:g('many').value,mmes:g('mmes').value};localStorage.setItem('mfilt',JSON.stringify(f));}catch(e){}
+}
+function restoreMFilt(){
+  try{var f=JSON.parse(localStorage.getItem('mfilt')||'{}');
+    if(f.mi&&g('mi'))g('mi').value=f.mi;
+    if(f.many&&g('many'))g('many').value=f.many;
+    if(f.mmes&&g('mmes'))g('mmes').value=f.mmes;
+  }catch(e){}
+}
+
 // Atalho secreto Ctrl+Shift+C → abre Minha Comissão
 document.addEventListener('keydown',function(e){
   if(e.ctrlKey&&e.shiftKey&&e.key==='C'&&curUser&&isG()){
@@ -3990,6 +4136,20 @@ document.addEventListener('keydown',function(e){
     rComissao();
     e.preventDefault();
   }
+});
+// Atalhos expandidos: N=nova mov, P=novo produto, E=nova empresa, Escape=fechar modal
+document.addEventListener('keydown',function(e){
+  if(!curUser)return;
+  var tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='input'||tag==='textarea'||tag==='select')return;
+  if(e.key==='Escape'){
+    var open=document.querySelector('.mbg.open');
+    if(open&&open.id!=='m-gsearch')open.classList.remove('open');
+  }
+  if(e.altKey||e.ctrlKey||e.metaKey)return;
+  if(e.key==='n'||e.key==='N'){if(isOp()){e.preventDefault();opM();}}
+  else if(e.key==='p'||e.key==='P'){if(isOp()){e.preventDefault();opP('');}}
+  else if(e.key==='e'||e.key==='E'){if(isG()){e.preventDefault();opE('');}}
 });
 // Só inicia listeners após confirmar estado de auth
 auth.onAuthStateChanged(function(user){
