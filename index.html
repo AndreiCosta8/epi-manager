@@ -931,6 +931,7 @@ td.op{white-space:nowrap}
   <div class="ni" id="nav-logs" onclick="nav('logs',this)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 12h-5"/> <path d="M15 8h-5"/> <path d="M19 17V5a2 2 0 0 0-2-2H4"/> <path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>Log de atividades</div>
   <div class="ni" id="nav-hist" onclick="nav('hist',this)" style="display:none"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/> <rect x="15" y="5" width="4" height="12" rx="1"/> <rect x="7" y="8" width="4" height="9" rx="1"/></svg>Histórico mensal</div>
   <div class="ni" id="nav-comissao" onclick="nav('comissao',this)" style="display:none"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/> <path d="m15 9-6 6"/> <path d="M9 9h.01"/> <path d="M15 15h.01"/></svg>Minha comissão</div>
+  <div class="ni" id="nav-gerente" onclick="nav('gerente',this)" style="display:none"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/></svg>Painel do Gerente</div>
   <div class="sfooter"><div id="sbstats" style="color:#475569;font-size:10.5px"></div></div>
 </div>
 
@@ -1233,6 +1234,11 @@ td.op{white-space:nowrap}
       </table>
     </div>
   </div>
+</div>
+
+<!-- PAINEL DO GERENTE -->
+<div class="pg" id="pg-gerente">
+  <div id="ger-cont"></div>
 </div>
 
 </div><!-- main -->
@@ -1841,6 +1847,7 @@ function refreshPage(){
   else if(curPage==='reports')rR();
   else if(curPage==='fechamento')rFech();
   else if(curPage==='ruptura')rRup();
+  else if(curPage==='gerente')rGer();
   updateBadge();
   if(curFichaPid)rFicha();
 }
@@ -1983,6 +1990,7 @@ function applyPermUI(){
   var bcl=g('btn-clear-logs');if(bcl)bcl.style.display=isG()?'':'none';
   var nh=g('nav-hist');if(nh)nh.style.display=isG()?'flex':'none';
   var nc=g('nav-comissao');if(nc)nc.style.display='none'; // oculto — acesse com Ctrl+Shift+C
+  var ng=g('nav-gerente');if(ng)ng.style.display=isG()?'flex':'none';
 }
 
 // ══════════════════════════════════════════════
@@ -1992,12 +2000,13 @@ function nav(id,el){
   document.querySelectorAll('.pg').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
   g('pg-'+id).classList.add('active');if(el)el.classList.add('active');curPage=id;
-  var t={dashboard:'Dashboard',products:'Produtos / EPI',ruptura:'Ruptura / CMM',companies:'Empresas',movements:'Movimentações',prices:'Tabela de preços',reports:'Relatórios',users:'Usuários',logs:'Log de atividades',hist:'Histórico mensal',comissao:'Minha comissão',fechamento:'Fechamento do mês','emp-dash':'Dashboard do cliente'};
+  var t={dashboard:'Dashboard',products:'Produtos / EPI',ruptura:'Ruptura / CMM',companies:'Empresas',movements:'Movimentações',prices:'Tabela de preços',reports:'Relatórios',users:'Usuários',logs:'Log de atividades',hist:'Histórico mensal',comissao:'Minha comissão',fechamento:'Fechamento do mês','emp-dash':'Dashboard do cliente',gerente:'Painel do Gerente'};
   g('ptitle').textContent=t[id]||id;
   closeSidebar();applyPermUI();
   if(id==='dashboard')rD();if(id==='products')rP();if(id==='ruptura')rRup();if(id==='companies')rE();
   if(id==='movements'){restoreMFilt();rM();}if(id==='prices')rPR();if(id==='reports')rR();if(id==='fechamento')rFech();
   if(id==='users')rU();if(id==='logs')rLogs();if(id==='hist')rHist();if(id==='comissao')rComissao();if(id==='emp-dash'&&curEmpDash)rEmpDash(curEmpDash);
+  if(id==='gerente')rGer();
 }
 function stab(id,el){
   document.querySelectorAll('.tp').forEach(function(t){t.classList.remove('active');});
@@ -2878,6 +2887,197 @@ function dChartHover(ev){
   tip.style.display='block';tip.style.left=(x/G.W*100)+'%';tip.style.top=(y/G.H*r.height)+'px';
 }
 function dChartHide(){var a=g('dc-mark'),b=g('dc-dot'),c=g('dchart-tip');if(a)a.style.display='none';if(b)b.style.display='none';if(c)c.style.display='none';}
+
+// ══════════════════════════════════════════════
+// PAINEL DO GERENTE
+// ══════════════════════════════════════════════
+function rGer(){
+  if(!isG())return;
+  var el=g('ger-cont');if(!el)return;
+  var hoje=new Date();
+  var hStr=hoje.toISOString().slice(0,10);
+  var mesAtual=hStr.slice(0,7);
+
+  // ── KPIs gerais ──────────────────────────────────────────────────────────
+  var totalEstoque=0;
+  prods.forEach(function(p){totalEstoque+=(p.at||0)*(p.pv||0);});
+  var abaixoMin=prods.filter(function(p){return (p.at||0)<(p.min||0);}).length;
+  var zerados=prods.filter(function(p){var mn=p.min||0;return mn>0&&(p.at||0)===0;}).length;
+  var fatMes=0,unidMes=0;
+  movs.forEach(function(m){if(m.io==='Saída'&&m.dt&&m.dt.slice(0,7)===mesAtual){fatMes+=(m.vt||0);unidMes+=(m.q||0);}});
+  var empresasAtivas=new Set();
+  movs.forEach(function(m){if(m.io==='Saída'&&m.eid)empresasAtivas.add(m.eid);});
+  var d90=new Date(hoje.getTime()+90*86400000).toISOString().slice(0,10);
+  var ca90=prods.filter(function(p){return p.ca_venc&&p.ca_venc>hStr&&p.ca_venc<=d90;}).length;
+  var caExp=prods.filter(function(p){return p.ca_venc&&p.ca_venc<=hStr;}).length;
+
+  // ── Faturamento 12 meses ─────────────────────────────────────────────────
+  var meses12=[];
+  for(var i=11;i>=0;i--){
+    var dm=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    meses12.push({y:dm.getFullYear(),m:dm.getMonth()+1,v:0,
+      n:['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][dm.getMonth()]});
+  }
+  movs.forEach(function(m){
+    if(m.io!=='Saída'||!m.dt)return;
+    var y=parseInt(m.dt.slice(0,4)),mo=parseInt(m.dt.slice(5,7));
+    meses12.forEach(function(mb){if(mb.y===y&&mb.m===mo)mb.v+=(m.vt||0);});
+  });
+
+  // ── Curva ABC ────────────────────────────────────────────────────────────
+  var abc={};
+  movs.forEach(function(m){
+    if(m.io!=='Saída'||!m.pid)return;
+    if(!abc[m.pid])abc[m.pid]={n:m.pn||m.pid,v:0};
+    abc[m.pid].v+=(m.vt||0);
+  });
+  var abcArr=Object.keys(abc).map(function(k){return abc[k];}).sort(function(a,b){return b.v-a.v;});
+  var totalABC=abcArr.reduce(function(s,x){return s+x.v;},0);
+  var top5=abcArr.slice(0,5);
+
+  // ── Cobertura projetada (CMM 3 meses) ───────────────────────────────────
+  var now3=[];
+  for(var j=0;j<3;j++){
+    var dd=new Date(hoje.getFullYear(),hoje.getMonth()-j,1);
+    now3.push(dd.getFullYear()+'-'+(dd.getMonth()+1<10?'0':'')+(dd.getMonth()+1));
+  }
+  var cmmMap={};
+  movs.forEach(function(m){
+    if(m.io!=='Saída'||!m.dt||!m.pid)return;
+    if(now3.indexOf(m.dt.slice(0,7))>=0)cmmMap[m.pid]=(cmmMap[m.pid]||0)+(m.q||0);
+  });
+  var baixaCob=[];
+  prods.forEach(function(p){
+    var cmm=(cmmMap[p.id]||0)/3;
+    if(cmm<=0)return;
+    var cob=Math.round((p.at||0)/cmm);
+    if(cob<30)baixaCob.push({n:p.n||p.id,at:p.at||0,cmm:cmm.toFixed(1),cob:cob});
+  });
+  baixaCob.sort(function(a,b){return a.cob-b.cob;});
+
+  // ── Empresas silenciosas (>60 dias) ─────────────────────────────────────
+  var ultCompra={};
+  movs.forEach(function(m){
+    if(m.io==='Saída'&&m.eid&&m.dt&&(!ultCompra[m.eid]||m.dt>ultCompra[m.eid]))ultCompra[m.eid]=m.dt;
+  });
+  var d60=new Date(hoje.getTime()-60*86400000).toISOString().slice(0,10);
+  var silenciosas=[];
+  emps.forEach(function(e){
+    var ult=ultCompra[e.id];
+    if(!ult||ult>=d60)return;
+    var dias=Math.round((hoje.getTime()-new Date(ult).getTime())/86400000);
+    silenciosas.push({n:e.n||e.id,ult:ult,dias:dias});
+  });
+  silenciosas.sort(function(a,b){return b.dias-a.dias;});
+
+  // ── Render HTML ──────────────────────────────────────────────────────────
+  var H='';
+
+  // — KPI row ——————————————————————————————————————————
+  var kpis=[
+    {ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>',
+     lbl:'Valor do estoque',val:brlCompacto(totalEstoque),sub:prods.length+' produtos cadastrados'},
+    {ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>',
+     lbl:'Faturamento do mês',val:brlCompacto(fatMes),sub:unidMes+' un · '+mesAtual.slice(5,7)+'/'+mesAtual.slice(0,4)},
+    {ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/></svg>',
+     lbl:'Abaixo do mínimo',val:String(abaixoMin),sub:zerados+' produto'+(zerados!==1?'s':'')+' zerado'+(zerados!==1?'s':'')},
+    {ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12h4"/><path d="M10 8h4"/><path d="M14 21v-3a2 2 0 0 0-4 0v3"/><path d="M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/></svg>',
+     lbl:'Empresas ativas',val:String(empresasAtivas.size),sub:'com histórico de compra'},
+    {ico:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>',
+     lbl:'CAs vencendo (90d)',val:String(ca90),sub:caExp+' já vencido'+(caExp!==1?'s':'')},
+  ];
+  H+='<div class="kgrid">';
+  kpis.forEach(function(k){
+    H+='<div class="kcrd"><div class="kico">'+k.ico+'</div><div class="kinfo"><span class="kval">'+k.val+'</span><span class="klbl">'+k.lbl+'</span><span class="ksub">'+k.sub+'</span></div></div>';
+  });
+  H+='</div>';
+
+  // — Faturamento 12 meses (bar chart SVG) ——————————————————
+  var maxFat=Math.max.apply(null,meses12.map(function(mb){return mb.v;}).concat([1]));
+  var GW=640,GH=180,GPD=10;
+  var barW=Math.floor((GW-GPD*(meses12.length+1))/meses12.length);
+  H+='<div class="card" style="margin-bottom:16px"><div class="ch"><h3>Faturamento — últimos 12 meses</h3></div><div class="dash-pad">';
+  H+='<svg viewBox="0 0 '+GW+' '+(GH+36)+'" style="width:100%;max-width:'+GW+'px;display:block" role="img" aria-label="Faturamento 12 meses">';
+  meses12.forEach(function(mb,idx){
+    var x=GPD+idx*(barW+GPD);
+    var bh=Math.max(2,Math.round(mb.v/maxFat*GH));
+    var isMesAtual=mb.y===hoje.getFullYear()&&mb.m===hoje.getMonth()+1;
+    var cor=isMesAtual?'#e0b12f':'#17335f';
+    var opa=isMesAtual?'1':'.72';
+    H+='<rect x="'+x+'" y="'+(GH-bh)+'" width="'+barW+'" height="'+bh+'" rx="3" fill="'+cor+'" fill-opacity="'+opa+'"/>';
+    H+='<text x="'+(x+barW/2).toFixed(0)+'" y="'+(GH+14)+'" text-anchor="middle" font-size="10" fill="#87959b">'+mb.n+'</text>';
+    if(mb.v>0)H+='<text x="'+(x+barW/2).toFixed(0)+'" y="'+(GH-bh-4)+'" text-anchor="middle" font-size="9" fill="'+(isMesAtual?'#b8870c':'#17335f')+'">'+brlCompacto(mb.v).replace('R$ ','').replace('R$ ','')+'</text>';
+  });
+  H+='</svg></div></div>';
+
+  // — 2-col row ————————————————————————————————————————————
+  H+='<div class="dash-row r2">';
+
+  // Curva ABC
+  var cores5=['#17335f','#2a5298','#3f7d58','#e0b12f','#87959b'];
+  H+='<div class="card"><div class="ch"><h3>Curva ABC — top produtos</h3><span class="at-mut" style="font-size:12px;color:#87959b">por valor total de saída</span></div><div class="dash-pad">';
+  if(top5.length){
+    top5.forEach(function(it,ii){
+      var pct=totalABC>0?Math.round(it.v/totalABC*100):0;
+      var nm=it.n.length>34?it.n.slice(0,32)+'…':it.n;
+      H+='<div style="margin-bottom:11px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:3px">'
+        +'<span style="font-weight:600">'+esc(nm)+'</span>'
+        +'<span style="color:'+cores5[ii]+';font-weight:700;min-width:36px;text-align:right">'+pct+'%</span></div>'
+        +'<div style="background:#e8edf0;border-radius:3px;height:6px">'
+        +'<div style="background:'+cores5[ii]+';width:'+Math.min(pct,100)+'%;height:6px;border-radius:3px;transition:width .4s"></div></div>'
+        +'<div style="font-size:11px;color:#87959b;margin-top:2px">'+brlInt(it.v)+'</div>'
+        +'</div>';
+    });
+    if(abcArr.length>5)H+='<div style="font-size:11px;color:#87959b;margin-top:2px">+'+( abcArr.length-5)+' outros produtos no histórico</div>';
+  }else{H+='<div class="empty">Sem dados de saída ainda.</div>';}
+  H+='</div></div>';
+
+  // Cobertura projetada
+  H+='<div class="card"><div class="ch"><h3>Cobertura &lt; 30 dias</h3><span class="at-mut" style="font-size:12px;color:#87959b">baseado no CMM dos últimos 3 meses</span></div><div class="dash-pad">';
+  if(baixaCob.length){
+    H+='<table style="width:100%;font-size:12.5px;border-collapse:collapse">'
+      +'<thead><tr><th style="text-align:left;padding:4px 0;color:#87959b;font-weight:500">Produto</th>'
+      +'<th style="text-align:right;padding:4px;color:#87959b;font-weight:500">Estq</th>'
+      +'<th style="text-align:right;padding:4px;color:#87959b;font-weight:500">CMM</th>'
+      +'<th style="text-align:right;padding:4px;color:#87959b;font-weight:500">Dias</th></tr></thead><tbody>';
+    baixaCob.slice(0,10).forEach(function(r){
+      var cor=r.cob<=7?'#c0392b':r.cob<=15?'#c07000':'#2980b9';
+      var nm=r.n.length>28?r.n.slice(0,26)+'…':r.n;
+      H+='<tr style="border-top:1px solid #e8edf0">'
+        +'<td style="padding:5px 0;font-weight:600">'+esc(nm)+'</td>'
+        +'<td style="text-align:right;padding:5px 4px">'+r.at+'</td>'
+        +'<td style="text-align:right;padding:5px 4px;color:#87959b">'+r.cmm+'</td>'
+        +'<td style="text-align:right;padding:5px 4px;font-weight:700;color:'+cor+'">'+r.cob+'d</td>'
+        +'</tr>';
+    });
+    H+='</tbody></table>';
+    if(baixaCob.length>10)H+='<div style="font-size:11px;color:#87959b;margin-top:6px">+'+(baixaCob.length-10)+' outros produtos em alerta</div>';
+  }else{
+    H+='<div class="empty" style="color:#3f7d58;font-weight:600">✓ Todos os produtos com cobertura ≥ 30 dias.</div>';
+  }
+  H+='</div></div>';
+
+  H+='</div>'; // end dash-row r2
+
+  // — Empresas silenciosas ——————————————————————————————————
+  if(silenciosas.length){
+    H+='<div class="card"><div class="ch"><h3>Empresas silenciosas</h3>'
+      +'<span class="at-mut" style="font-size:12px;color:#87959b">sem compra há mais de 60 dias</span></div>'
+      +'<div class="tscroll"><table class="tbl-responsive">'
+      +'<thead><tr><th>Empresa</th><th>Última compra</th><th>Dias parada</th></tr></thead><tbody>';
+    silenciosas.slice(0,15).forEach(function(s){
+      var cor=s.dias>120?'#c0392b':s.dias>90?'#c07000':'#87959b';
+      H+='<tr><td>'+esc(s.n)+'</td><td>'+s.ult+'</td>'
+        +'<td style="font-weight:700;color:'+cor+'">'+s.dias+' dias</td></tr>';
+    });
+    H+='</tbody></table></div>';
+    if(silenciosas.length>15)H+='<div style="padding:8px 20px 12px;font-size:11px;color:#87959b">+'+(silenciosas.length-15)+' outras empresas</div>';
+    H+='</div>';
+  }
+
+  el.innerHTML=H;
+}
 
 function rD(){
   // Popula o select de Ano com os anos que têm movimentação ou histórico (sempre inclui o ano atual).
