@@ -2897,6 +2897,10 @@ function rGer(){
   var hoje=new Date();
   var hStr=hoje.toISOString().slice(0,10);
   var mesAtual=hStr.slice(0,7);
+  var NOMES_MES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  function ym(d){return d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1);}
+  var dmAnt=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);
+  var mesAnt=ym(dmAnt);
 
   // ── KPIs gerais ──────────────────────────────────────────────────────────
   var totalEstoque=0;
